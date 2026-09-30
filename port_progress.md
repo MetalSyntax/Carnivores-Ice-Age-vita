@@ -148,3 +148,47 @@ _(vacía — anotar aquí cada bug confirmado en consola)_
 5. `show_fps 1` ahora reporta además ms de motor (CPU) vs `gl_swap` (GPU/vblank) por frame.
 - Pendiente de investigar: por cada asset el motor intenta abrir los "bundles" (`Failed to open archive`
   x2 por archivo) antes del APK principal; posible costo en la carga de 31 s.
+
+#### Prueba 5 (log `carnivoresiceage_005.log`) — congelamiento al pulsar Cuadrado; carga sigue en ~30 s
+- **Congelamiento (causa confirmada por análisis estático):** Cuadrado = `game_weapon` → `Weapon_TakeWeapon()` →
+  `Weapons_Animate()` hace `do t -= len; while (len <= t);` con `len = (frames-1)/kps` del `.ani`
+  (`CharacterInfo_Load`, `characters_info + slot*0xf7c + 0x2c + i*0x34 + 0x58`). Si falta el `.ani`, `len = 0`
+  → bucle infinito. La partida usaba SHOTGUN: `shotgun.can` está en el APK pero `shotgun.3dn` y
+  `shotgun_animation_*.ani` no están en ningún archivo de Ice Age (solo en el APK de Dinosaur Hunter).
+  `dbsgun`/`x_bow` (+ área 6) están en `CarnivoresBundleTwo.apk`; `sniper` (+ áreas 3-4) en `CarnivoresBundleOne.apk`.
+  - Fix: hook de `CharacterInfo_Load` (ARM, 0x5f1d0): si un slot de arma (0-5, 0x22) queda sin animaciones
+    válidas se recarga en el mismo slot con `dbsgun` → `rifle` → `pistol` (stats por slot intactas). Para
+    no-armas: longitudes 0 → 1.0 y warning.
+  - `main.c` pasa los bundles reales: `main.obb` (ambos), o `bundle1.apk`/`CarnivoresBundleOne.apk` y
+    `bundle2.apk`/`CarnivoresBundleTwo.apk`.
+- **Carga:** el log 004 muestra 300-600 ms por cada `.ogg` y 6,5 s tras `menumusic_cmpr.ogg` → FMOD decodificando
+  Vorbis a PCM con soft-float (`libfmodex.so` también es armeabi v5TE; el parche VFP solo cubría el motor).
+  - Fix: `softfloat_patch(mod)` se aplica a **ambos** módulos desde `load_module()`: hooks de entrada para los
+    helpers enlazados (fmod: 15 float en 0xd03ac..0xd0a4c, escaneo de saltos OK) + override de GOT para los
+    importados (fmod importa los double; antes iban a la libgcc soft del vitasdk).
+  - Caché de `zip_open`/`zip_close` (Thumb, vía PLT; escaneo OK): el motor abría y cerraba los bundles en cada
+    búsqueda fallida (todas las texturas prueban `.crthd` → `.tga` → `.crt`). Ahora quedan abiertos toda la
+    sesión y un bundle ausente responde "no disponible" sin tocar la tarjeta.
+
+#### Prueba 6 (log `carnivoresiceage_006.log`) — **funciona en consola**: Cuadrado ya no congela; carga 30,6 s → 16,6 s
+- Confirmado en consola: partida completa jugable, arma elegible sin congelamiento, carga ~17 s.
+- `softfloat`: fmod 16 hooks + 10 imports, motor 32 hooks. Carga: `Entering main loop` 3,4 s → `onLoadingCompleted`
+  20,0 s (antes 3,4 → 34,0 s).
+- Arma DOUBLE-BARRELED SHOTGUN elegida: `assets: weapon 'dbsgun' has no model/animations, using 'rifle'` →
+  el fallback funciona, pero reveló que **los bundles no abrían**: `zip: CarnivoresBundleOne.apk not available`
+  aunque el archivo existe (y antes, `game.apk` como bundle fallaba igual).
+  - Causa: libzip está compilado contra bionic y `ferror(fp)` quedó **inline**: `ldrh r3,[fp,#12]` & `0x40`
+    (`fp->_flags & __SERR`). Nuestros `FILE*` son de SceLibc (otro layout): el bit dio 0 para el APK por
+    casualidad y 1 para los bundles → `ZIP_ER_READ`.
+  - Fix: `patch.c` reemplaza los 5 `ldrh r3,[r3,#12]` (0x899b → `movs r3,#0` 0x2300) en `_zip_find_central_dir`,
+    `_zip_readcdir` (x2), `_zip_cdir_write`, `_zip_dirent_write`, verificando el opcode antes. **Pendiente de
+    probar en consola.**
+- Las advertencias de `hunter2`/`sship1`/`diatr` eran falsas: tienen animaciones de 1 frame (duración legítima 0).
+  Ahora "faltante" = sin frames/datos; toda duración 0 pasa a 0,01 s (termina en un frame, como 0, sin colgarse).
+
+### Release v1.0
+- Build limpio verificado 2026-09-30 (`carnivoresiceage.vpk`, VITA_VERSION 01.00), incluye el parche de `ferror`.
+- Procedimiento de publicación: `RELEASE.md`. Único pendiente antes de publicar: confirmar en consola que los
+  packs abren (log sin `zip: ... not available`; ver checklist).
+- `README.md` reescrito para GitHub (requisitos, instalación con tabla de archivos, packs, controles, opciones,
+  problemas conocidos, reporte de bugs, build, créditos, licencias). `RELEASE_NOTES.md` = texto de la release.

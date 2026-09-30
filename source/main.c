@@ -75,6 +75,15 @@ static void *sym(const char *name, int required) {
     return p;
 }
 
+// First existing path, or NULL. The Google Play expansion (main.obb) holds
+// both packs; the standalone bundle APKs hold one each.
+static const char *find_bundle(const char *a, const char *b, const char *c) {
+    if (file_exists(a)) return a;
+    if (file_exists(b)) return b;
+    if (file_exists(c)) return c;
+    return NULL;
+}
+
 static void call_init(const char *name, jobject obj) {
     jni_void_fn fn = sym(name, 0);
     if (fn) {
@@ -103,19 +112,28 @@ int main() {
 
     // Assets: the engine opens the APK itself with its bundled libzip
     // (Files_OpenFileOfType -> zip_open/zip_fopen(ZIP_FL_NODIR)), then the two
-    // "bundle" archives (the Google Play expansion OBB) as fallbacks.
+    // content bundles as fallbacks. Pack 1 (areas 3-4, sniper rifle) and
+    // pack 2 (area 6, double-barreled shotgun, crossbow) are not in the APK;
+    // without them those weapons have no model (see patch.c).
     if (!file_exists(APK_PATH)) {
         fatal_error("Looks like you haven't installed the data files for this "
                     "port. Please copy the original APK to %s", APK_PATH);
     }
-    const char *bundle = file_exists(DATA_PATH "main.obb") ? DATA_PATH "main.obb" : APK_PATH;
-    l_info("APK: %s, bundles: %s", APK_PATH, bundle);
+    const char *bundle1 = find_bundle(DATA_PATH "main.obb", DATA_PATH "bundle1.apk",
+                                      DATA_PATH "CarnivoresBundleOne.apk");
+    const char *bundle2 = find_bundle(DATA_PATH "main.obb", DATA_PATH "bundle2.apk",
+                                      DATA_PATH "CarnivoresBundleTwo.apk");
+    l_info("APK: %s, bundle 1: %s, bundle 2: %s", APK_PATH,
+           bundle1 ? bundle1 : "(none)", bundle2 ? bundle2 : "(none)");
 
     gl_init();
     l_success("vitaGL initialized (%dx%d).", SCREEN_W, SCREEN_H);
 
-    jstring bundle_str = jni->NewStringUTF(&jni, bundle);
-    nativeSetBundlesPaths(&jni, activity_obj, bundle_str, bundle_str);
+    // A missing bundle gets a path that does not exist: the zip_open() cache in
+    // patch.c answers "not available" for it without touching the card.
+    nativeSetBundlesPaths(&jni, activity_obj,
+                          jni->NewStringUTF(&jni, bundle1 ? bundle1 : DATA_PATH "bundle1.apk"),
+                          jni->NewStringUTF(&jni, bundle2 ? bundle2 : DATA_PATH "bundle2.apk"));
 
     call_init("Java_com_tatem_iceage_utils_FacebookWrapper_nativeInit", (jobject) &facebook_placeholder);
     call_init("Java_com_tatem_iceage_utils_SocialUtils_nativeInit", (jobject) &social_placeholder);

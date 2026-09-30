@@ -14,6 +14,7 @@
 #include "utils/logger.h"
 #include "utils/utils.h"
 #include "utils/settings.h"
+#include "reimpl/softfloat.h"
 
 #include <string.h>
 
@@ -56,6 +57,11 @@ static void load_module(so_module *mod, const char *path, uintptr_t addr, int pa
     // so_resolve_link(), so libfmodex.so must already be loaded here.
     resolve_imports(mod);
     l_success("%s imports resolved.", path);
+
+    // Both modules are soft-float armeabi code: run their math on the VFP
+    // (libfmodex.so: Vorbis decoding at load time + the mixer).
+    if (setting_vfpFloat)
+        softfloat_patch(mod, path);
 
     if (patch) {
         so_patch();

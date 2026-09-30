@@ -60,3 +60,6 @@ cmake-build-*/
 
 # Objetos sueltos extraidos a mano (p.ej. de libvitaGL.a para inspeccionarlos)
 /*.o
+*.webp
+# Respaldos locales (p.ej. de las imagenes de LiveArea)
+*.bak

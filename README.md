@@ -1,62 +1,129 @@
 # Carnivores: Ice Age — PS Vita port
 
-so-loader port of the Android version (1.5.4) of *Carnivores: Ice Age* (Tatem Games / Action Forms).
-It runs the original `libIceAgeAndroid.so` + `libfmodex.so` with an emulated Java layer (FalsoJNI).
-You need your own copy of the game APK; nothing from the game is distributed here.
+A PS Vita port of the Android version (1.5.4) of *Carnivores: Ice Age* (Tatem Games).
 
-> Status: not yet tested on real hardware. See `port_progress.md`.
+It is a so-loader port: the original ARM game binaries from the Android APK (`libIceAgeAndroid.so` and its
+audio engine `libfmodex.so`) run on the Vita, with the Android/Java side of the game reimplemented natively
+(FalsoJNI), OpenGL ES 1.1 through vitaGL, and FMOD's Android audio output replaced by the Vita's audio ports.
 
-## Install
+**Nothing from the game is included.** You need your own copy of the Android APK.
 
-1. Install `kubridge.skprx` and `libshacccg.suprx` (ShaRKBR33D).
-2. Install `carnivoresiceage.vpk`.
-3. Create `ux0:data/carnivoresiceage/` and copy into it:
-   - the original APK, renamed to `game.apk`
-   - `libIceAgeAndroid.so` and `libfmodex.so` from the APK's `lib/armeabi/` folder
-4. Launch. Logs go to `ux0:data/carnivoresiceage/logs/`.
+## Features
+
+- The full game runs: menus, hunting in every area you have the data for, weapons, calls, map, binoculars.
+- Native physical controls (both sticks, buttons) plus the original touch controls.
+- Right-stick camera driven directly into the game's camera code: fast, smooth and independent of the frame rate.
+- The engine's software floating point (the APK is old `armeabi` code) runs on the Vita's FPU — both the game
+  and FMOD. Together with an archive cache and a quieter log, the initial load went from ~31 s to ~17 s.
+- Optional content packs (extra areas and weapons) are supported.
+- Settings in a plain `config.txt`.
+
+## Requirements
+
+- A PS Vita / PS TV with HENkaku/Ensō (taiHEN).
+- [kubridge](https://github.com/TheOfficialFloW/kubridge/releases) (`kubridge.skprx` in `ur0:tai/config.txt` under `*KERNEL`).
+- `libshacccg.suprx` extracted to `ur0:data/` (use [ShaRKBR33D](https://github.com/Rinnegatamante/ShaRKBR33D)).
+- The Android APK of *Carnivores: Ice Age* **1.5.4** (package `com.tatemgames.iceage`, `armeabi`).
+
+## Installation
+
+1. Install `carnivoresiceage.vpk` with VitaShell.
+2. Create the folder `ux0:data/carnivoresiceage/` and copy into it:
+
+   | File | Where it comes from |
+   |---|---|
+   | `game.apk` | The original APK, renamed |
+   | `libIceAgeAndroid.so` | Inside the APK: `lib/armeabi/libIceAgeAndroid.so` |
+   | `libfmodex.so` | Inside the APK: `lib/armeabi/libfmodex.so` |
+   | `CarnivoresBundleOne.apk` *(optional)* | Content pack 1: areas 3–4 and the sniper rifle |
+   | `CarnivoresBundleTwo.apk` *(optional)* | Content pack 2: area 6, double-barreled shotgun and crossbow |
+
+   The content packs can also be named `bundle1.apk` / `bundle2.apk`, or be replaced by a Google Play
+   expansion file named `main.obb` that contains both.
+3. Launch the game from the LiveArea. The first boot creates `config.txt` and the `logs/` folder.
+
+### About the weapons
+
+The plain **shotgun** model is not in the 1.5.4 APK or in either content pack. The game still lets you pick it:
+it keeps its own stats but is drawn with the double-barreled shotgun model (or the rifle if pack 2 is missing).
+The same fallback applies to the pack 2 weapons (double-barreled shotgun, crossbow) and the pack 1 sniper rifle
+when their pack is not installed. On Android the missing files froze the game; here they never do.
 
 ## Controls
 
 | Vita | Action |
 |---|---|
-| Touch screen | Original touch controls |
+| Touch screen | Original touch controls (they all keep working) |
 | Left stick | Move |
-| Right stick | Look |
+| Right stick | Look around |
 | R / Cross | Fire |
 | L | Alternative fire |
-| Square | Switch weapon |
+| Square | Weapon button: draw the weapon and open / close the weapon list |
 | Triangle | Binoculars |
 | D-pad up | Call |
 | Select / D-pad down | Map |
 | Start / Circle | Pause / back |
 
+Buttons press the game's own on-screen controls, so they only act when that control is on screen.
+
 ## Options
 
-`ux0:data/carnivoresiceage/config.txt` (rewritten on every boot, so new keys show up):
+`ux0:data/carnivoresiceage/config.txt` is rewritten on every boot, so keys added by newer versions show up
+automatically. One `key value` per line:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `language` | `0` | 0 = system, 1 English, 2 German, 3 French, 4 Spanish |
-| `unlock_bundles` | `1` | Treat the two Google Play content bundles as owned (there is no store on Vita) |
-| `look_sensitivity` | `100` | Right stick camera speed in percent (10–400). Frame-rate independent; stacks with the in-game sensitivity slider |
-| `invert_look_y` | `0` | Invert right stick vertical axis |
-| `show_fps` | `0` | Log the frame rate and CPU (engine) / GPU (swap) time per frame every 5 seconds |
-| `msaa` | `1` | Anti-aliasing: 0 off (fastest), 1 2x, 2 4x |
-| `engine_log` | `0` | Write the game's own debug messages to the log (slow: it logs every frame) |
-| `vfp_float` | `1` | Run the game's software floating point on the Vita FPU (big speedup; 0 only to rule it out if something looks wrong) |
+| `language` | `0` | 0 = system language, 1 English, 2 German, 3 French, 4 Spanish |
+| `unlock_bundles` | `1` | Treat both content packs as purchased (there is no store on Vita) |
+| `look_sensitivity` | `100` | Right stick camera speed in percent (10–400). Stacks with the in-game sensitivity slider |
+| `invert_look_y` | `0` | Invert the right stick vertical axis |
+| `msaa` | `1` | Anti-aliasing: 0 off (fastest), 1 = 2x, 2 = 4x |
+| `show_fps` | `0` | Every 5 s, log the frame rate and the CPU (engine) / GPU (swap) time per frame |
+| `engine_log` | `0` | Also log the game's own debug messages (slow: it logs every frame; for bug reports) |
+| `vfp_float` | `1` | Run the game's and FMOD's software floating point on the FPU. Set to 0 only to rule it out if something looks wrong |
+
+## Known issues
+
+- Menus run at 60 FPS; 3D hunting scenes are much slower (16–19 FPS measured before the FPU patch, not
+  re-measured since). `msaa 0` helps if the GPU is the limit — `show_fps 1` tells which side it is.
+- The plain shotgun uses another weapon's model (see [About the weapons](#about-the-weapons)).
+- Online features of the Android version (Facebook, Google Play Games, ads, in-app purchases) are stubbed out.
+- The Android "Exit?" dialog is not shown: quit with the PS button.
+
+## Reporting bugs
+
+Attach the latest `ux0:data/carnivoresiceage/logs/carnivoresiceage_NNN.log`. For crashes also attach the
+`.psp2dmp` from `ux0:data/`. Setting `engine_log 1` gives much more detail.
 
 ## Building
 
-Requires VitaSDK. vitaGL is vendored in `vendor/vitaGL` and built with `SOFTFP_ABI=1` automatically. Build and deploy with psvita-port-toolkit (`psvita-toolkit build`,
-`psvita-toolkit deploy --vpk`), or plain CMake:
+Requires [VitaSDK](https://vitasdk.org). vitaGL is vendored in `vendor/vitaGL` and is built automatically with
+`SOFTFP_ABI=1` (the system `libvitaGL.a` gives a black screen with this port).
 
 ```sh
-mkdir -p build && cd build && cmake .. && make
+mkdir -p build && cd build
+cmake ..
+make
 ```
 
+This produces `build/carnivoresiceage.vpk`. The port was developed with
+psvita-port-toolkit (`psvita-toolkit build`, `psvita-toolkit deploy --vpk`); plain CMake works the same.
 `extras/scripts/make_livearea.py` regenerates the LiveArea images from an extracted APK.
+
+Technical notes (engine analysis, every patch applied to the `.so` and why) are in `PORTING_PLAN.md` and
+`port_progress.md`.
 
 ## Credits
 
-Based on [soloader-boilerplate](https://github.com/v-atamanenko/soloader-boilerplate) (TheFloW, Rinnegatamante,
-Volodymyr Atamanenko) and FalsoJNI.
+- Port: Wonder Diaz.
+- [soloader-boilerplate](https://github.com/v-atamanenko/soloader-boilerplate) and
+  [FalsoJNI](https://github.com/v-atamanenko/FalsoJNI) — Volodymyr Atamanenko, based on the so-loader work of
+  Andy Nguyen (TheFloW) and Rinnegatamante.
+- [vitaGL](https://github.com/Rinnegatamante/vitaGL) and [vitaShaRK](https://github.com/Rinnegatamante/vitaShaRK) — Rinnegatamante.
+- [kubridge](https://github.com/TheOfficialFloW/kubridge) — TheFloW.
+- *Carnivores: Ice Age* © Tatem Games. This project is not affiliated with or endorsed by Tatem Games.
+
+## License
+
+The loader code is MIT (see `LICENSE`). vitaGL (`vendor/vitaGL`) is LGPL-3.0. The game and FMOD are proprietary
+and are not distributed with this project.
