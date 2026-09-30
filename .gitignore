@@ -28,7 +28,10 @@ assets/
 /build/
 CMakeCache.txt
 CMakeFiles/
-Makefile
+# Makefiles generados por CMake (build in-tree). Anclado: vendor/vitaGL/Makefile es
+# fuente real. Sin `!`: el toolkit copia con rsync `:- .gitignore` y ahí `!` borra las reglas.
+/Makefile
+/lib/**/Makefile
 cmake_install.cmake
 *.elf
 *.self
@@ -63,3 +66,5 @@ cmake-build-*/
 *.webp
 # Respaldos locales (p.ej. de las imagenes de LiveArea)
 *.bak
+# Generado por psvita-toolkit build (rutas locales)
+/compile_commands.json

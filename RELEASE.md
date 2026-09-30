@@ -21,6 +21,10 @@ Si los packs siguen sin abrir: publicar igual, pero mover "Optional content pack
 
 ## 2. Build
 
+Con el toolkit: `psvita-toolkit build` (compila en un directorio temporal copiado con
+`rsync --filter ':- .gitignore'`, así que todo lo que el build necesita tiene que no estar ignorado -- ojo: en
+ese filtro `!` no niega, vacía las reglas). A mano:
+
 ```sh
 export VITASDK=~/vitasdk PATH=$VITASDK/bin:$PATH
 rm -rf build && mkdir build && cd build && cmake .. && make
