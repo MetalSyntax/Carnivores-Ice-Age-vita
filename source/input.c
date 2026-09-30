@@ -46,6 +46,7 @@
 #include <psp2/kernel/processmgr.h>
 
 #include <falso_jni/FalsoJNI.h>
+#include <kubridge.h>
 #include <so_util/so_util.h>
 
 #include <math.h>
@@ -82,7 +83,7 @@ static int *gui_controls_count, *gui_active_group;
 static uint32_t *gui_active_subgroups;
 
 static int *ctl_move, *ctl_fire, *ctl_alt_fire, *ctl_weapon, *ctl_binoculars,
-           *ctl_call, *ctl_map;
+           *ctl_call, *ctl_map, *ctl_photo_shot, *ctl_photo_zoom_in, *ctl_photo_zoom_out;
 
 typedef struct {
     int active;
@@ -101,7 +102,7 @@ static button_map buttons[] = {
     { SCE_CTRL_LTRIGGER,                  &ctl_alt_fire,   {0} },
     { SCE_CTRL_SQUARE,                    &ctl_weapon,     {0} },
     { SCE_CTRL_TRIANGLE,                  &ctl_binoculars, {0} },
-    { SCE_CTRL_UP,                        &ctl_call,       {0} },
+    { SCE_CTRL_UP | SCE_CTRL_CIRCLE,      &ctl_call,       {0} },
     { SCE_CTRL_SELECT | SCE_CTRL_DOWN,    &ctl_map,        {0} },
 };
 #define NUM_BUTTONS (sizeof(buttons) / sizeof(buttons[0]))
@@ -358,6 +359,51 @@ static void update_buttons(uint32_t held, uint32_t pressed) {
     }
 }
 
+/* --- HUD opacity --------------------------------------------------------- *
+ * The in-game touch buttons are redundant with the physical controls, so
+ * GUI_DrawControls() is wrapped to draw them with hud_opacity % of their alpha.
+ * The color is ARGB at +0x28 (GUI_SetControlColor; the engine uses 0x80ffffff
+ * and animates game_fire's alpha every frame), so it is scaled only for the
+ * duration of the draw and restored afterwards. The compass/minimap is drawn by
+ * Navigations_Render(), not by gui_controls[], and keeps its opacity; so do
+ * the weapon and call selection lists (game_weapons[], game_call_icons[]).
+ * game_map and game_menu have no sprite (invisible hit areas). */
+
+#define CTL_COLOR 0x28
+
+static so_hook draw_controls_hook;
+
+static void GUI_DrawControls_hook(void) {
+    int **hud[] = { &ctl_move, &ctl_fire, &ctl_alt_fire, &ctl_weapon, &ctl_binoculars,
+                    &ctl_call, &ctl_photo_shot, &ctl_photo_zoom_in, &ctl_photo_zoom_out };
+    uint32_t saved[sizeof(hud) / sizeof(hud[0])];
+    uint32_t *color[sizeof(hud) / sizeof(hud[0])];
+
+    for (unsigned i = 0; i < sizeof(hud) / sizeof(hud[0]); i++) {
+        uint8_t *c = *hud[i] ? control(**hud[i]) : NULL;
+        color[i] = c ? (uint32_t *) (c + CTL_COLOR) : NULL;
+        if (!color[i])
+            continue;
+        saved[i] = *color[i];
+        uint32_t a = (saved[i] >> 24) * (uint32_t) setting_hudOpacity / 100;
+        if (a == 0 && setting_hudOpacity > 0 && (saved[i] >> 24))
+            a = 1;
+        *color[i] = (saved[i] & 0x00ffffff) | (a << 24);
+    }
+
+    kuKernelCpuUnrestrictedMemcpy((void *) draw_controls_hook.addr, draw_controls_hook.orig_instr,
+                                  sizeof(draw_controls_hook.orig_instr));
+    kuKernelFlushCaches((void *) draw_controls_hook.addr, sizeof(draw_controls_hook.orig_instr));
+    ((void (*)(void)) draw_controls_hook.addr)();   // ARM
+    kuKernelCpuUnrestrictedMemcpy((void *) draw_controls_hook.addr, draw_controls_hook.patch_instr,
+                                  sizeof(draw_controls_hook.patch_instr));
+    kuKernelFlushCaches((void *) draw_controls_hook.addr, sizeof(draw_controls_hook.patch_instr));
+
+    for (unsigned i = 0; i < sizeof(hud) / sizeof(hud[0]); i++)
+        if (color[i])
+            *color[i] = saved[i];
+}
+
 /* --- public API --------------------------------------------------------- */
 
 #define SYM(var, name) do { \
@@ -366,6 +412,13 @@ static void update_buttons(uint32_t held, uint32_t pressed) {
     } while (0)
 
 void input_patch(void) {
+    // HUD buttons opacity (hud_opacity); ARM function, checked with objdump.
+    uintptr_t draw = so_symbol(&so_mod, "_Z16GUI_DrawControlsv");
+    if (setting_hudOpacity < 100 && draw && !(draw & 1))
+        draw_controls_hook = hook_addr(draw, (uintptr_t) &GUI_DrawControls_hook);
+    else if (setting_hudOpacity < 100)
+        l_warn("input: GUI_DrawControls not hooked, hud_opacity ignored");
+
     touched_locations       = (float *) so_symbol(&so_mod, "gui_touched_locations");
     touched_start_locations = (float *) so_symbol(&so_mod, "gui_touched_start_locations");
     touched_controls        = (int *) so_symbol(&so_mod, "gui_touched_controls");
@@ -400,6 +453,9 @@ void input_init(void) {
     SYM(ctl_binoculars, "game_binoculars");
     SYM(ctl_call,       "game_call");
     SYM(ctl_map,        "game_map");
+    SYM(ctl_photo_shot,     "game_photomode_shot");
+    SYM(ctl_photo_zoom_in,  "game_photomode_zoom_in");
+    SYM(ctl_photo_zoom_out, "game_photomode_zoom_out");
 
     for (int s = 0; s < REAL_SLOTS; s++)
         real[s].id = -1;
@@ -423,7 +479,7 @@ void input_update(void) {
     old_buttons = pad.buttons;
 
     // Android back key: pause menu in game, previous page in menus.
-    if ((pressed & (SCE_CTRL_START | SCE_CTRL_CIRCLE)) && nativeOnBackPressed) {
+    if ((pressed & SCE_CTRL_START) && nativeOnBackPressed) {
         jboolean wants_exit = nativeOnBackPressed(&jni, activity_obj);
         // true = main menu; Android would show "Exit?". Exiting is done from
         // the PS button on Vita, so this is only logged.

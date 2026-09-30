@@ -31,6 +31,8 @@ extern bool setting_showFps;
 extern int  setting_msaa;
 extern bool setting_engineLog;
 extern bool setting_vfpFloat;
+/** In-game virtual buttons opacity, percent of the engine's own (0..100). */
+extern int  setting_hudOpacity;
 
 void settings_load();
 void settings_save();

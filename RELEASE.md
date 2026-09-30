@@ -7,12 +7,13 @@ Procedimiento interno (el texto público de la release está en `RELEASE_NOTES.m
 - [ ] Instalar el VPK recién compilado y arrancar con `CarnivoresBundleOne.apk` / `CarnivoresBundleTwo.apk`
       en `ux0:data/carnivoresiceage/`.
 - [ ] En el log más nuevo (`ux0:data/carnivoresiceage/logs/`):
-  - [ ] `zip: ...CarnivoresBundleOne.apk opened (kept open)` y lo mismo para `BundleTwo`
-        (en el log 006 salían `not available`; el parche de `ferror` inline de `patch.c` es el fix, sin probar aún).
+  - [x] `zip: ...CarnivoresBundleOne.apk opened (kept open)` y lo mismo para `BundleTwo` (confirmado, log 007).
   - [ ] No aparece `zip: unexpected opcode` ni `inlined ferror() sites patched`.
   - [ ] Eligiendo la escopeta doble ya **no** aparece `weapon 'dbsgun' has no model/animations`.
 - [ ] Área 3/4 (pack 1) y área 6 (pack 2) cargan; rifle de francotirador y ballesta se ven con su modelo.
 - [ ] Sin los packs: el juego sigue arrancando (fallback a `rifle`, sin congelarse con Cuadrado).
+- [ ] En la cacería los botones táctiles casi no se ven (1 %) y siguen respondiendo al toque; la brújula se ve
+      normal; Círculo hace la llamada y Start pausa.
 - [ ] Salir con PS y volver a entrar: la partida guardada se conserva.
 
 Si los packs siguen sin abrir: publicar igual, pero mover "Optional content packs" de *What works* a

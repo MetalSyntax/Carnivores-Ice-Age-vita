@@ -28,6 +28,8 @@ Requires `kubridge.skprx` and `libshacccg.suprx` (ShaRKBR33D).
 - **No freeze on missing weapons.** The plain shotgun model is in none of the 1.5.4 files; the game used to
   lock up the first time a weapon without files was drawn. Such a weapon now keeps its stats and uses another
   weapon's model.
+- In-game touch buttons drawn at 1 % opacity (`hud_opacity`, 0–100) since every one has a physical button;
+  the compass stays fully visible. Circle is the animal call.
 - Settings in `ux0:data/carnivoresiceage/config.txt`: language, content packs, camera speed / inversion,
   anti-aliasing (`msaa`), FPS / timing log (`show_fps`).
 

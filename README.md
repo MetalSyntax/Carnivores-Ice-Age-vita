@@ -53,16 +53,16 @@ when their pack is not installed. On Android the missing files froze the game; h
 
 | Vita | Action |
 |---|---|
-| Touch screen | Original touch controls (they all keep working) |
+| Touch screen | Original touch controls (they all keep working, even when made transparent) |
 | Left stick | Move |
 | Right stick | Look around |
 | R / Cross | Fire |
 | L | Alternative fire |
 | Square | Weapon button: draw the weapon and open / close the weapon list |
 | Triangle | Binoculars |
-| D-pad up | Call |
+| Circle / D-pad up | Call (animal call) |
 | Select / D-pad down | Map |
-| Start / Circle | Pause / back |
+| Start | Pause / back |
 
 Buttons press the game's own on-screen controls, so they only act when that control is on screen.
 
@@ -80,6 +80,7 @@ automatically. One `key value` per line:
 | `msaa` | `1` | Anti-aliasing: 0 off (fastest), 1 = 2x, 2 = 4x |
 | `show_fps` | `0` | Every 5 s, log the frame rate and the CPU (engine) / GPU (swap) time per frame |
 | `engine_log` | `0` | Also log the game's own debug messages (slow: it logs every frame; for bug reports) |
+| `hud_opacity` | `1` | Opacity of the in-game touch buttons, percent of the original (0 hidden, 100 original). They keep working when touched. The compass and the weapon/call lists are not affected |
 | `vfp_float` | `1` | Run the game's and FMOD's software floating point on the FPU. Set to 0 only to rule it out if something looks wrong |
 
 ## Known issues

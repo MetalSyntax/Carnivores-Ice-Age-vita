@@ -20,6 +20,7 @@ bool setting_showFps;
 int  setting_msaa;
 bool setting_engineLog;
 bool setting_vfpFloat;
+int  setting_hudOpacity;
 
 void settings_reset() {
     setting_language        = 0;     // 0 = system language, 1 en, 2 de, 3 fr, 4 es
@@ -30,6 +31,7 @@ void settings_reset() {
     setting_msaa            = 1;     // 0 off, 1 2x, 2 4x (GPU cost at 960x544)
     setting_engineLog       = false; // engine __android_log_* spam -> log file
     setting_vfpFloat        = true;  // run the engine's soft-float math on the VFP
+    setting_hudOpacity      = 1;     // percent, in-game touch buttons (physical controls replace them)
 }
 
 void settings_load() {
@@ -50,6 +52,7 @@ void settings_load() {
             else if (strcmp("msaa", buffer) == 0)             setting_msaa            = value;
             else if (strcmp("engine_log", buffer) == 0)       setting_engineLog       = (bool)value;
             else if (strcmp("vfp_float", buffer) == 0)        setting_vfpFloat        = (bool)value;
+            else if (strcmp("hud_opacity", buffer) == 0)      setting_hudOpacity      = value;
         }
         fclose(config);
     }
@@ -58,6 +61,8 @@ void settings_load() {
     if (setting_lookSensitivity < 10) setting_lookSensitivity = 10;
     if (setting_lookSensitivity > 400) setting_lookSensitivity = 400;
     if (setting_msaa < 0 || setting_msaa > 2) setting_msaa = 1;
+    if (setting_hudOpacity < 0) setting_hudOpacity = 0;
+    if (setting_hudOpacity > 100) setting_hudOpacity = 100;
 
     // Always rewrite: writes the defaults on first boot and adds keys that
     // are new in this version to an existing config.txt.
@@ -76,6 +81,7 @@ void settings_save() {
         fprintf(config, "%s %d\n", "msaa", setting_msaa);
         fprintf(config, "%s %d\n", "engine_log", (int)setting_engineLog);
         fprintf(config, "%s %d\n", "vfp_float", (int)setting_vfpFloat);
+        fprintf(config, "%s %d\n", "hud_opacity", setting_hudOpacity);
         fclose(config);
     }
 }

@@ -186,6 +186,16 @@ _(vacía — anotar aquí cada bug confirmado en consola)_
 - Las advertencias de `hunter2`/`sship1`/`diatr` eran falsas: tienen animaciones de 1 frame (duración legítima 0).
   Ahora "faltante" = sin frames/datos; toda duración 0 pasa a 0,01 s (termina en un frame, como 0, sin colgarse).
 
+#### Prueba 7 (log `carnivoresiceage_007.log`) — **packs confirmados**: el parche de `ferror` funciona
+- `zip: ...CarnivoresBundleOne.apk opened (kept open)` y `...BundleTwo.apk opened`; ya no aparece el fallback de
+  `dbsgun`. Quedan solo las advertencias benignas de `hunter2`/`sship1`/`diatr`.
+- Pedido de controles: Círculo pasa a ser **llamar** (junto a D-pad arriba); antes duplicaba Start (atrás/pausa).
+- Botones táctiles al 1 % de opacidad (`hud_opacity`, default 1): hook de `GUI_DrawControls` (ARM, 0x46e54) que
+  escala el alfa del color ARGB (`+0x28`) de movement/fire/alt_fire/weapon/binoculars/call/photomode solo durante
+  el dibujado (el motor anima el alfa de `game_fire` cada frame, por eso no se escribe una vez). La brújula es
+  `Navigations_Render()`, fuera de `gui_controls[]`: no se toca. Listas de armas/llamadas quedan visibles.
+  **Pendiente de probar en consola.**
+
 ### Release v1.0
 - Build limpio verificado 2026-09-30 (`carnivoresiceage.vpk`, VITA_VERSION 01.00), incluye el parche de `ferror`.
 - Procedimiento de publicación: `RELEASE.md`. Único pendiente antes de publicar: confirmar en consola que los
