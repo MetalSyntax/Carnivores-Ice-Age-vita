@@ -16,6 +16,8 @@ int  setting_language;
 bool setting_unlockBundles;
 int  setting_lookSensitivity;
 bool setting_invertLookY;
+bool setting_invertLookX;
+bool setting_swapSticks;
 bool setting_showFps;
 int  setting_msaa;
 bool setting_engineLog;
@@ -27,6 +29,8 @@ void settings_reset() {
     setting_unlockBundles   = true;  // Google Play bundles cannot be bought on Vita
     setting_lookSensitivity = 100;   // percent, right analog stick camera speed (100 = 300 logical px/s)
     setting_invertLookY     = false;
+    setting_invertLookX     = false;
+    setting_swapSticks      = false; // true: left stick looks, right stick moves
     setting_showFps         = false;
     setting_msaa            = 1;     // 0 off, 1 2x, 2 4x (GPU cost at 960x544)
     setting_engineLog       = false; // engine __android_log_* spam -> log file
@@ -48,6 +52,8 @@ void settings_load() {
             else if (strcmp("unlock_bundles", buffer) == 0)   setting_unlockBundles   = (bool)value;
             else if (strcmp("look_sensitivity", buffer) == 0) setting_lookSensitivity = value;
             else if (strcmp("invert_look_y", buffer) == 0)    setting_invertLookY     = (bool)value;
+            else if (strcmp("invert_look_x", buffer) == 0)    setting_invertLookX     = (bool)value;
+            else if (strcmp("swap_sticks", buffer) == 0)      setting_swapSticks      = (bool)value;
             else if (strcmp("show_fps", buffer) == 0)         setting_showFps         = (bool)value;
             else if (strcmp("msaa", buffer) == 0)             setting_msaa            = value;
             else if (strcmp("engine_log", buffer) == 0)       setting_engineLog       = (bool)value;
@@ -77,6 +83,8 @@ void settings_save() {
         fprintf(config, "%s %d\n", "unlock_bundles", (int)setting_unlockBundles);
         fprintf(config, "%s %d\n", "look_sensitivity", setting_lookSensitivity);
         fprintf(config, "%s %d\n", "invert_look_y", (int)setting_invertLookY);
+        fprintf(config, "%s %d\n", "invert_look_x", (int)setting_invertLookX);
+        fprintf(config, "%s %d\n", "swap_sticks", (int)setting_swapSticks);
         fprintf(config, "%s %d\n", "show_fps", (int)setting_showFps);
         fprintf(config, "%s %d\n", "msaa", setting_msaa);
         fprintf(config, "%s %d\n", "engine_log", (int)setting_engineLog);

@@ -241,6 +241,11 @@ _(vacía — anotar aquí cada bug confirmado en consola)_
   `control_visual_rect()` (lo que dibuja el control: sprite, knob, texto; en celdas de caza el hexágono
   `menu_hunt_cell_empty`, 16 px debajo de la zona táctil). `GUI_DrawControls` y `Menu_UpdateCellButtonPosition`
   son idénticos en los dos juegos (verificado en el pseudo-C).
+- Menú del port para reasignar controles, portado de Dinosaur Hunter (`overlay.c` + `vita_menu.c`): Start + Select
+  (Select solo fuera del juego) abre el panel; acciones FIRE, ALT_FIRE, WEAPON, BINOCULARS, CALL, MAP, PHOTO_SHOT,
+  ZOOM_IN, ZOOM_OUT en `controls.txt`; nuevos `invert_look_x` y `swap_sticks`. START ahora va al soltarlo (para que
+  el combo no pause). Diferencia con DH: `v_sx/v_sy` valen 960x640 en Ice Age (`EAGLView()`, hd_mode 1) y no son el
+  espacio GUI, así que `overlay_w/h` usan `scaleX * real_width` (480x320). **Pendiente de probar en consola.**
 
 ### Release v1.1 (preparada 2026-10-01, sin etiquetar)
 - `VITA_VERSION` 01.01. Novedades: navegación de menús con botones + cuadro amarillo, packs desde el OBB de Play

@@ -26,6 +26,9 @@ extern bool setting_unlockBundles;
 /** Right analog stick camera speed, percent (10..400). */
 extern int  setting_lookSensitivity;
 extern bool setting_invertLookY;
+extern bool setting_invertLookX;
+/** Left stick looks, right stick moves. */
+extern bool setting_swapSticks;
 /** Log the average frame rate every 5 seconds. */
 extern bool setting_showFps;
 extern int  setting_msaa;

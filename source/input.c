@@ -37,6 +37,8 @@
  */
 
 #include "input.h"
+#include "overlay.h"
+#include "vita_menu.h"
 
 #include "utils/logger.h"
 #include "utils/settings.h"
@@ -47,10 +49,11 @@
 
 #include <falso_jni/FalsoJNI.h>
 #include <kubridge.h>
-#include <vitaGL.h>
 #include <so_util/so_util.h>
 
+#include <ctype.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -93,8 +96,6 @@ static gui_get_slider_value_fn GUI_GetSliderValue;
 static gui_set_slider_value_fn GUI_SetSliderValue;
 
 static void (*Sprites_GetSpriteSize)(void *sprite, float *size);
-static void (*Font_GetTextSize)(char *text, char *font, float *size);
-static int *fonts_count;
 static uint8_t *menu_hunt_cell_empty;
 
 static int menu_focused_ctl = -1;
@@ -107,21 +108,71 @@ typedef struct {
     uint64_t since;     // begin timestamp (us)
 } vtouch;
 
-typedef struct {
-    uint32_t buttons;   // any of these physical buttons holds the control
-    int **control;      // engine global holding the control index
-    vtouch t;
-} button_map;
+/* Remappable actions: each one holds a synthetic touch on one HUD control
+ * while any of its buttons is down. Saved in controls.txt, edited in game with
+ * the port menu (vita_menu.c). START is not bindable: it is always the Android
+ * back key (pause / previous page) and, with SELECT, opens the port menu. */
+#define CONTROLS_PATH    DATA_PATH "controls.txt"
+#define CONTROLS_VERSION 1
 
-static button_map buttons[] = {
-    { SCE_CTRL_RTRIGGER | SCE_CTRL_CROSS, &ctl_fire,       {0} },
-    { SCE_CTRL_LTRIGGER,                  &ctl_alt_fire,   {0} },
-    { SCE_CTRL_SQUARE,                    &ctl_weapon,     {0} },
-    { SCE_CTRL_TRIANGLE,                  &ctl_binoculars, {0} },
-    { SCE_CTRL_UP | SCE_CTRL_CIRCLE,      &ctl_call,       {0} },
-    { SCE_CTRL_SELECT | SCE_CTRL_DOWN,    &ctl_map,        {0} },
+typedef struct {
+    const char *name;           // controls.txt key
+    const char *label;          // port menu
+    uint32_t default_buttons;
+    int **control;              // engine global holding the control index
+    uint32_t buttons;           // current binding
+    vtouch t;
+} Action;
+
+enum { ACT_FIRE, ACT_ALT_FIRE, ACT_WEAPON, ACT_BINOCULARS, ACT_CALL, ACT_MAP,
+       ACT_PHOTO_SHOT, ACT_ZOOM_IN, ACT_ZOOM_OUT, ACT_COUNT };
+
+static Action actions[ACT_COUNT] = {
+    [ACT_FIRE]       = { "FIRE",       "Fire",                       SCE_CTRL_RTRIGGER | SCE_CTRL_CROSS, &ctl_fire },
+    [ACT_ALT_FIRE]   = { "ALT_FIRE",   "Alternative fire",           SCE_CTRL_LTRIGGER,                  &ctl_alt_fire },
+    [ACT_WEAPON]     = { "WEAPON",     "Draw weapon / weapon list",  SCE_CTRL_SQUARE,                    &ctl_weapon },
+    [ACT_BINOCULARS] = { "BINOCULARS", "Binoculars",                 SCE_CTRL_TRIANGLE,                  &ctl_binoculars },
+    [ACT_CALL]       = { "CALL",       "Animal call",                SCE_CTRL_UP | SCE_CTRL_CIRCLE,      &ctl_call },
+    [ACT_MAP]        = { "MAP",        "Map",                        SCE_CTRL_SELECT | SCE_CTRL_DOWN,    &ctl_map },
+    // R is shared with FIRE on purpose: game_fire and game_photomode_shot are
+    // never usable at the same time (HUD subgroups 0x801 vs 0x4000).
+    [ACT_PHOTO_SHOT] = { "PHOTO_SHOT", "Photo mode: take photo",     SCE_CTRL_RTRIGGER,                  &ctl_photo_shot },
+    [ACT_ZOOM_IN]    = { "ZOOM_IN",    "Photo mode: zoom in",        SCE_CTRL_RIGHT,                     &ctl_photo_zoom_in },
+    [ACT_ZOOM_OUT]   = { "ZOOM_OUT",   "Photo mode: zoom out",       SCE_CTRL_LEFT,                      &ctl_photo_zoom_out },
 };
-#define NUM_BUTTONS (sizeof(buttons) / sizeof(buttons[0]))
+
+typedef struct {
+    const char *name;   // controls.txt spelling (first one per mask is canonical)
+    const char *label;  // port menu
+    uint32_t mask;
+} ButtonName;
+
+static const ButtonName button_names[] = {
+    { "CROSS",      "Cross",    SCE_CTRL_CROSS },
+    { "CIRCLE",     "Circle",   SCE_CTRL_CIRCLE },
+    { "SQUARE",     "Square",   SCE_CTRL_SQUARE },
+    { "TRIANGLE",   "Triangle", SCE_CTRL_TRIANGLE },
+    { "L1",         "L",        SCE_CTRL_LTRIGGER },
+    { "R1",         "R",        SCE_CTRL_RTRIGGER },
+    { "UP",         "Up",       SCE_CTRL_UP },
+    { "DOWN",       "Down",     SCE_CTRL_DOWN },
+    { "LEFT",       "Left",     SCE_CTRL_LEFT },
+    { "RIGHT",      "Right",    SCE_CTRL_RIGHT },
+    { "SELECT",     "Select",   SCE_CTRL_SELECT },
+    { "START",      "Start",    SCE_CTRL_START },
+    // Aliases, only read.
+    { "X",          NULL,       SCE_CTRL_CROSS },
+    { "O",          NULL,       SCE_CTRL_CIRCLE },
+    { "L",          NULL,       SCE_CTRL_LTRIGGER },
+    { "LTRIGGER",   NULL,       SCE_CTRL_LTRIGGER },
+    { "R",          NULL,       SCE_CTRL_RTRIGGER },
+    { "RTRIGGER",   NULL,       SCE_CTRL_RTRIGGER },
+    { "DPAD_UP",    NULL,       SCE_CTRL_UP },
+    { "DPAD_DOWN",  NULL,       SCE_CTRL_DOWN },
+    { "DPAD_LEFT",  NULL,       SCE_CTRL_LEFT },
+    { "DPAD_RIGHT", NULL,       SCE_CTRL_RIGHT },
+};
+#define BUTTON_NAMES_COUNT (sizeof(button_names) / sizeof(button_names[0]))
 
 static vtouch move_touch;
 static float move_cx, move_cy;          // surface-space origin of move_touch
@@ -138,6 +189,8 @@ static struct {
 } real[REAL_SLOTS];
 
 static uint32_t old_buttons;
+static int start_combo;                 // START held and used for START+SELECT
+static uint64_t nav_hint_until;         // "SELECT: controls" hint in the menus
 static int ready;
 
 /* --- engine space helpers ---------------------------------------------- */
@@ -359,13 +412,18 @@ static void update_look(float ax, float ay) {
     float norm_ay = ay;
     float curve_x = 0.4f * norm_ax + 0.6f * norm_ax * fabsf(norm_ax);
     float curve_y = 0.4f * norm_ay + 0.6f * norm_ay * fabsf(norm_ay);
-    look_dx = curve_x * speed;
+    look_dx = curve_x * speed * (setting_invertLookX ? -1.0f : 1.0f);
     look_dy = -curve_y * speed * (setting_invertLookY ? -1.0f : 1.0f);
 }
 
+static void release_actions(void) {
+    for (int i = 0; i < ACT_COUNT; i++)
+        t_end(&actions[i].t);
+}
+
 static void update_buttons(uint32_t held, uint32_t pressed) {
-    for (unsigned i = 0; i < NUM_BUTTONS; i++) {
-        button_map *b = &buttons[i];
+    for (int i = 0; i < ACT_COUNT; i++) {
+        Action *b = &actions[i];
         int down = (held & b->buttons) != 0;
 
         if (down && !b->t.active && (pressed & b->buttons)) {
@@ -578,7 +636,6 @@ static void update_menu_navigation(uint32_t held, uint32_t pressed, float ax, fl
  * ends with Sprites_Render(), Font_Render(), GUI_RenderFade(), all in the 2D
  * GUI projection whose units are the gui_controls[] logical space. GL state
  * touched here is restored before returning. */
-#define FOCUS_MAX_QUADS 9
 #define HUNT_CELL_W     90.0f
 #define HUNT_CELL_H     68.0f
 #define HUNT_CELL_DROP  16.0f
@@ -607,14 +664,6 @@ static int sprite_size(void *sprite, float *w, float *h) {
     *w = size[0];
     *h = size[1];
     return size[0] > 0.0f && size[1] > 0.0f;
-}
-
-static void text_size(const char *text, const char *font, float *w, float *h) {
-    float size[2] = { 0.0f, 0.0f };
-    if (Font_GetTextSize && fonts_count && *fonts_count > 0)
-        Font_GetTextSize((char *) text, (char *) font, size);
-    if (w) *w = size[0];
-    if (h) *h = size[1];
 }
 
 static void box_add_sprite(Box *b, void *sprite, float x, float y, float scale, uint32_t sflags) {
@@ -647,8 +696,8 @@ static void control_visual_rect(int idx, float *x0, float *y0, float *x1, float 
     const char *text = (const char *) (c + 0x6C);
     if (c[0x31] && type == CTL_TYPE_BUTTON && text[0]) {
         float fs = *(float *) (c + 0x68), tw, th, lh;
-        text_size(text, (const char *) (c + 0x48), &tw, &th);
-        text_size("A", (const char *) (c + 0x48), NULL, &lh);
+        overlay_text_size(text, (const char *) (c + 0x48), &tw, &th);
+        overlay_text_size("A", (const char *) (c + 0x48), NULL, &lh);
         tw *= fs; th *= fs; lh *= fs;
         float tx = x + *(float *) (c + 0x16C), ty = y + *(float *) (c + 0x170);
         float left = (flags & 2) ? tx - tw : (flags & 4) ? tx - tw * 0.5f : tx;
@@ -675,21 +724,6 @@ static void control_visual_rect(int idx, float *x0, float *y0, float *x1, float 
     *x0 = b.x0; *y0 = b.y0; *x1 = b.x1; *y1 = b.y1;
 }
 
-static GLfloat focus_v[FOCUS_MAX_QUADS * 12];
-static uint32_t focus_c[FOCUS_MAX_QUADS * 6];
-static int focus_quads;
-
-static void focus_quad(float x0, float y0, float x1, float y1, uint32_t abgr) {
-    if (focus_quads >= FOCUS_MAX_QUADS)
-        return;
-    GLfloat *v = &focus_v[focus_quads * 12];
-    v[0] = x0; v[1]  = y0;  v[2] = x1;  v[3] = y0;  v[4]  = x1; v[5]  = y1;
-    v[6] = x0; v[7]  = y0;  v[8] = x1;  v[9] = y1;  v[10] = x0; v[11] = y1;
-    for (int i = 0; i < 6; i++)
-        focus_c[focus_quads * 6 + i] = abgr;
-    focus_quads++;
-}
-
 static void draw_menu_focus(void) {
     if (in_gameplay() || !is_menu_control_navigable(menu_focused_ctl))
         return;
@@ -705,46 +739,225 @@ static void draw_menu_focus(void) {
     if (lx > 10.0f) lx = 10.0f;
     if (ly > 10.0f) ly = 10.0f;
 
-    focus_quads = 0;
     if (old_buttons & SCE_CTRL_CROSS)
-        focus_quad(x0, y0, x1, y1, 0x28ffffff);
-    focus_quad(x0 - t, y0 - t, x0 + lx, y0, col);   // bottom-left (y up)
-    focus_quad(x0 - t, y0, x0, y0 + ly, col);
-    focus_quad(x1 - lx, y0 - t, x1 + t, y0, col);   // bottom-right
-    focus_quad(x1, y0, x1 + t, y0 + ly, col);
-    focus_quad(x0 - t, y1, x0 + lx, y1 + t, col);   // top-left
-    focus_quad(x0 - t, y1 - ly, x0, y1, col);
-    focus_quad(x1 - lx, y1, x1 + t, y1 + t, col);   // top-right
-    focus_quad(x1, y1 - ly, x1 + t, y1, col);
-
-    GLboolean tex = glIsEnabled(GL_TEXTURE_2D);
-    GLboolean blend = glIsEnabled(GL_BLEND);
-    GLboolean col_arr = glIsEnabled(GL_COLOR_ARRAY);
-    GLboolean tc_arr = glIsEnabled(GL_TEXTURE_COORD_ARRAY);
-    GLboolean v_arr = glIsEnabled(GL_VERTEX_ARRAY);
-
-    if (tex) glDisable(GL_TEXTURE_2D);
-    if (!blend) glEnable(GL_BLEND);
-    if (tc_arr) glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-    if (!v_arr) glEnableClientState(GL_VERTEX_ARRAY);
-    if (!col_arr) glEnableClientState(GL_COLOR_ARRAY);
-
-    glVertexPointer(2, GL_FLOAT, 0, focus_v);
-    glColorPointer(4, GL_UNSIGNED_BYTE, 0, focus_c);
-    glDrawArrays(GL_TRIANGLES, 0, focus_quads * 6);
-
-    if (!col_arr) glDisableClientState(GL_COLOR_ARRAY);
-    if (!v_arr) glDisableClientState(GL_VERTEX_ARRAY);
-    if (tc_arr) glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-    if (!blend) glDisable(GL_BLEND);
-    if (tex) glEnable(GL_TEXTURE_2D);
+        overlay_rect(x0, y0, x1, y1, 0x28ffffff);
+    overlay_rect(x0 - t, y0 - t, x0 + lx, y0, col);   // bottom-left (y up)
+    overlay_rect(x0 - t, y0, x0, y0 + ly, col);
+    overlay_rect(x1 - lx, y0 - t, x1 + t, y0, col);   // bottom-right
+    overlay_rect(x1, y0, x1 + t, y0 + ly, col);
+    overlay_rect(x0 - t, y1, x0 + lx, y1 + t, col);   // top-left
+    overlay_rect(x0 - t, y1 - ly, x0, y1, col);
+    overlay_rect(x1 - lx, y1, x1 + t, y1 + t, col);   // top-right
+    overlay_rect(x1, y1 - ly, x1 + t, y1, col);
 }
 
-static so_hook font_render_hook;
+// Overlay callback (inside Font_Render): port menu, or the menu cursor and
+// the "SELECT" hint.
+static void draw_overlay(void) {
+    if (vita_menu_active()) {
+        vita_menu_draw();
+        return;
+    }
+    if (in_gameplay())
+        return;
 
-static void Font_Render_hook(void) {
-    SO_CONTINUE(int, font_render_hook);
     draw_menu_focus();
+
+    if (sceKernelGetProcessTimeWide() < nav_hint_until) {
+        float w = overlay_w();
+        overlay_rect(w * 0.5f - 120.0f, 3.0f, w * 0.5f + 120.0f, 19.0f, 0xa0000000);
+        overlay_text(w * 0.5f, 11.0f, 0.8f, 0xffffffff,
+                     "SELECT: Vita controls & camera", OVL_HCENTER | OVL_VCENTER, OVL_FONT);
+    }
+}
+
+/* --- bindings ------------------------------------------------------------- */
+
+int input_action_count(void) { return ACT_COUNT; }
+
+const char *input_action_label(int action) {
+    return action >= 0 && action < ACT_COUNT ? actions[action].label : "";
+}
+
+uint32_t input_action_buttons(int action) {
+    return action >= 0 && action < ACT_COUNT ? actions[action].buttons : 0;
+}
+
+void input_action_bind(int action, uint32_t button, int add) {
+    if (action < 0 || action >= ACT_COUNT)
+        return;
+    for (int i = 0; i < ACT_COUNT; i++)
+        actions[i].buttons &= ~button;
+    actions[action].buttons = add ? (actions[action].buttons | button) : button;
+}
+
+void input_action_clear(int action) {
+    if (action >= 0 && action < ACT_COUNT)
+        actions[action].buttons = 0;
+}
+
+void input_controls_defaults(void) {
+    for (int i = 0; i < ACT_COUNT; i++)
+        actions[i].buttons = actions[i].default_buttons;
+}
+
+uint32_t input_bindable_buttons(void) {
+    uint32_t mask = 0;
+    for (unsigned i = 0; i < BUTTON_NAMES_COUNT; i++)
+        if (button_names[i].label)
+            mask |= button_names[i].mask;
+    return mask & ~SCE_CTRL_START;
+}
+
+static void buttons_join(uint32_t mask, char *out, size_t size, int labels) {
+    size_t len = 0;
+    out[0] = '\0';
+    for (unsigned i = 0; i < BUTTON_NAMES_COUNT; i++) {
+        const ButtonName *b = &button_names[i];
+        if (!b->label || !(mask & b->mask))
+            continue;
+        int n = snprintf(out + len, size - len, "%s%s", len ? ", " : "", labels ? b->label : b->name);
+        if (n < 0 || (size_t) n >= size - len)
+            break;
+        len += n;
+    }
+    if (!len)
+        snprintf(out, size, "%s", labels ? "-" : "NONE");
+}
+
+void input_buttons_text(uint32_t mask, char *out, size_t size) {
+    buttons_join(mask, out, size, 1);
+}
+
+// Copies the first word of `s` (up to whitespace, ',', '=', ':', '#', ';'),
+// upper-cased.
+static void word(const char *s, char *out, size_t size) {
+    while (*s == ' ' || *s == '\t')
+        s++;
+    size_t len = 0;
+    while (*s && !strchr(" \t,=:#;\r\n", *s) && len < size - 1)
+        out[len++] = (char) toupper((unsigned char) *s++);
+    out[len] = '\0';
+}
+
+static uint32_t parse_button_token(const char *tok) {
+    char clean[32];
+    word(tok, clean, sizeof(clean));
+    if (!clean[0] || strcmp(clean, "NONE") == 0)
+        return 0;
+    for (unsigned i = 0; i < BUTTON_NAMES_COUNT; i++) {
+        if (strcmp(clean, button_names[i].name) == 0)
+            return button_names[i].mask & ~SCE_CTRL_START;
+    }
+    l_warn("input: unknown button '%s'", clean);
+    return 0;
+}
+
+static uint32_t parse_button_list(const char *p) {
+    uint32_t mask = 0;
+    while (*p && *p != '#' && *p != ';' && *p != '\r' && *p != '\n') {
+        mask |= parse_button_token(p);
+        while (*p && *p != ',' && *p != '#' && *p != ';' && *p != '\r' && *p != '\n')
+            p++;
+        if (*p == ',')
+            p++;
+    }
+    return mask;
+}
+
+static int find_action_index(const char *name) {
+    char clean[32];
+    word(name, clean, sizeof(clean));
+    for (int i = 0; i < ACT_COUNT; i++) {
+        if (strcmp(clean, actions[i].name) == 0)
+            return i;
+    }
+    return -1;
+}
+
+void input_controls_save(void) {
+    FILE *f = fopen(CONTROLS_PATH, "w");
+    if (!f) {
+        l_error("input: cannot write %s", CONTROLS_PATH);
+        return;
+    }
+    fprintf(f,
+        "# Carnivores: Ice Age - PS Vita controls\n"
+        "# Also editable in game: START + SELECT (or SELECT in the menus).\n"
+        "#\n"
+        "# Buttons: CROSS, CIRCLE, SQUARE, TRIANGLE, L1, R1, UP, DOWN, LEFT, RIGHT,\n"
+        "#   SELECT, NONE. START is always pause / back.\n"
+        "#\n"
+        "# Actions:\n"
+        "#   FIRE         Fire\n"
+        "#   ALT_FIRE     Alternative fire\n"
+        "#   WEAPON       Weapon button: draw the weapon / open the weapon list\n"
+        "#   BINOCULARS   Binoculars on / off\n"
+        "#   CALL         Animal call\n"
+        "#   MAP          Map\n"
+        "#   PHOTO_SHOT / ZOOM_IN / ZOOM_OUT  Photo mode\n"
+        "#\n"
+        "# ACTION = BUTTON, BUTTON ...   (or BUTTON = ACTION)\n"
+        "\n"
+        "VERSION = %d\n", CONTROLS_VERSION);
+    for (int i = 0; i < ACT_COUNT; i++) {
+        char list[128];
+        buttons_join(actions[i].buttons, list, sizeof(list), 0);
+        fprintf(f, "%s = %s\n", actions[i].name, list);
+    }
+    fclose(f);
+}
+
+void input_reload_controls(void) {
+    input_controls_defaults();
+
+    FILE *f = fopen(CONTROLS_PATH, "r");
+    if (!f) {
+        input_controls_save();
+        l_info("input: generated default %s", CONTROLS_PATH);
+        return;
+    }
+
+    uint32_t parsed[ACT_COUNT] = {0};
+    int seen[ACT_COUNT] = {0};
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+        char *p = line;
+        while (*p == ' ' || *p == '\t')
+            p++;
+        if (*p == '#' || *p == ';' || *p == '\r' || *p == '\n' || *p == '\0')
+            continue;
+        char *eq = strpbrk(p, "=:");
+        if (!eq)
+            continue;
+        *eq = '\0';
+        char *right = eq + 1;
+
+        char key[32];
+        word(p, key, sizeof(key));
+        if (strcmp(key, "VERSION") == 0)
+            continue;
+
+        int act = find_action_index(p);
+        if (act >= 0) {
+            seen[act] = 1;
+            parsed[act] |= parse_button_list(right);
+        } else {
+            act = find_action_index(right);
+            uint32_t btn = parse_button_token(p);
+            if (act >= 0 && btn) {
+                seen[act] = 1;
+                parsed[act] |= btn;
+            }
+        }
+    }
+    fclose(f);
+
+    for (int i = 0; i < ACT_COUNT; i++)
+        if (seen[i])
+            actions[i].buttons = parsed[i];
+    for (int i = 0; i < ACT_COUNT; i++)
+        l_info("input: %-10s -> 0x%08X", actions[i].name, actions[i].buttons);
 }
 
 /* --- HUD opacity --------------------------------------------------------- *
@@ -819,12 +1032,8 @@ void input_patch(void) {
     else
         l_warn("input: GUI_DrawControls not hooked");
 
-    // Menu focus box, drawn after the engine's text (ARM, checked with objdump).
-    uintptr_t fr = so_symbol(&so_mod, "_Z11Font_Renderv");
-    if (fr && !(fr & 1))
-        font_render_hook = hook_addr(fr, (uintptr_t) &Font_Render_hook);
-    else
-        l_warn("input: Font_Render not hooked, menu focus box disabled");
+    // Port overlay (menu cursor, port menu), drawn after the engine's text.
+    overlay_patch();
 
     touched_locations       = (float *) so_symbol(&so_mod, "gui_touched_locations");
     touched_start_locations = (float *) so_symbol(&so_mod, "gui_touched_start_locations");
@@ -875,8 +1084,6 @@ void input_init(void) {
 
     // Menu focus marker: what each control draws (see control_visual_rect).
     Sprites_GetSpriteSize = (void *) so_symbol(&so_mod, "_Z21Sprites_GetSpriteSizeP14_SpriteHandlerP9_Vector2D");
-    Font_GetTextSize      = (void *) so_symbol(&so_mod, "_Z16Font_GetTextSizePcS_P9_Vector2D");
-    fonts_count           = (int *) so_symbol(&so_mod, "fonts_count");
     menu_hunt_cell_empty  = (uint8_t *) so_symbol(&so_mod, "menu_hunt_cell_empty");
 
     for (int s = 0; s < REAL_SLOTS; s++)
@@ -885,9 +1092,44 @@ void input_init(void) {
     sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG_WIDE);
 
+    input_reload_controls();
+
     ready = touchesBegan && touchesMoved && touchesEnded && touchesCancelled;
-    if (!ready)
+    if (!ready) {
         l_error("input: IceAgeGLSurface natives missing, input disabled");
+        return;
+    }
+    overlay_set_callback(draw_overlay);
+    nav_hint_until = sceKernelGetProcessTimeWide() + 12000000;
+}
+
+static void release_real_touch(void) {
+    for (int s = 0; s < REAL_SLOTS; s++) {
+        if (real[s].id != -1) {
+            touchesEnded(&jni, surface_obj, real[s].x, real[s].y);
+            real[s].id = -1;
+        }
+    }
+}
+
+static void press_back(void) {
+    if (!nativeOnBackPressed)
+        return;
+    // true = main menu; Android would show "Exit?". Exiting is done from the
+    // PS button on Vita, so this is only logged.
+    if (nativeOnBackPressed(&jni, activity_obj))
+        l_info("input: back pressed at main menu (exit dialog skipped)");
+}
+
+static void open_port_menu(int game) {
+    release_actions();
+    t_end(&move_touch);
+    release_real_touch();
+    look_dx = look_dy = 0.0f;
+    if (game)
+        press_back(); // pause the hunt underneath
+    nav_hint_until = 0;
+    vita_menu_open();
 }
 
 void input_update(void) {
@@ -897,32 +1139,69 @@ void input_update(void) {
     SceCtrlData pad;
     memset(&pad, 0, sizeof(pad));
     sceCtrlPeekBufferPositive(0, &pad, 1);
-    uint32_t pressed = pad.buttons & ~old_buttons;
-    old_buttons = pad.buttons;
+    uint32_t buttons = pad.buttons;
+    uint32_t pressed = buttons & ~old_buttons;
+    uint32_t released = old_buttons & ~buttons;
+    old_buttons = buttons;
 
-    // Android back key: pause menu in game, previous page in menus.
-    if ((pressed & SCE_CTRL_START) && nativeOnBackPressed) {
-        jboolean wants_exit = nativeOnBackPressed(&jni, activity_obj);
-        // true = main menu; Android would show "Exit?". Exiting is done from
-        // the PS button on Vita, so this is only logged.
-        if (wants_exit)
-            l_info("input: back pressed at main menu (exit dialog skipped)");
+    if (vita_menu_active()) {
+        if (!(buttons & SCE_CTRL_START))
+            start_combo = 0;
+        vita_menu_update(buttons, pressed);
+        // Closed with START: its release must not count as "back".
+        if (!vita_menu_active() && (buttons & SCE_CTRL_START))
+            start_combo = 1;
+        look_dx = look_dy = 0.0f;
+        return;
+    }
+
+    int game = in_gameplay();
+
+    // START + SELECT (either order) opens the port menu; START alone is the
+    // Android back key (pause in game, previous page in menus), sent on
+    // release so the combo doesn't also pause. In the game's own menus SELECT
+    // alone is enough (it is the map only in game).
+    if (((buttons & SCE_CTRL_START) && (pressed & SCE_CTRL_SELECT)) ||
+        ((buttons & SCE_CTRL_SELECT) && (pressed & SCE_CTRL_START))) {
+        start_combo = 1;
+        open_port_menu(game);
+        return;
+    }
+    if (!game && (pressed & SCE_CTRL_SELECT)) {
+        open_port_menu(0);
+        return;
+    }
+    if (released & SCE_CTRL_START) {
+        if (!start_combo)
+            press_back();
+        start_combo = 0;
     }
 
     update_real_touch();
 
-    if (in_gameplay()) {
+    float lx = axis(pad.lx), ly = axis(pad.ly), rx = axis(pad.rx), ry = axis(pad.ry);
+    float mx = lx, my = ly, cx = rx, cy = ry;
+    if (setting_swapSticks) {
+        mx = rx; my = ry;
+        cx = lx; cy = ly;
+    }
+
+    if (game) {
         menu_focused_ctl = -1;
-        update_buttons(pad.buttons, pressed);
-        update_move(axis(pad.lx), axis(pad.ly));
-        update_look(axis(pad.rx), axis(pad.ry));
+        uint32_t act_held = buttons, act_pressed = pressed;
+        if (buttons & SCE_CTRL_START) {         // SELECT is part of the combo
+            act_held &= ~SCE_CTRL_SELECT;
+            act_pressed &= ~SCE_CTRL_SELECT;
+        }
+        update_buttons(act_held, act_pressed);
+        update_move(mx, my);
+        update_look(cx, cy);
     } else {
         // Leaving gameplay (pause, statistics...): drop held synthetic touches.
         t_end(&move_touch);
-        for (unsigned i = 0; i < NUM_BUTTONS; i++)
-            t_end(&buttons[i].t);
+        release_actions();
         look_dx = look_dy = 0.0f;
-        update_menu_navigation(pad.buttons, pressed, axis(pad.lx), axis(pad.ly));
+        update_menu_navigation(buttons, pressed, lx, ly);
     }
 
     // After this frame's touches: drop any release latch on the share buttons.
@@ -932,16 +1211,10 @@ void input_update(void) {
 void input_release_all(void) {
     if (!ready)
         return;
-    for (unsigned i = 0; i < NUM_BUTTONS; i++)
-        t_end(&buttons[i].t);
+    release_actions();
     t_end(&move_touch);
     look_dx = look_dy = 0.0f;
-    for (int s = 0; s < REAL_SLOTS; s++) {
-        if (real[s].id != -1) {
-            touchesEnded(&jni, surface_obj, real[s].x, real[s].y);
-            real[s].id = -1;
-        }
-    }
+    release_real_touch();
     menu_focused_ctl = -1;
     nav_last_direction = 0;
     old_buttons = 0;

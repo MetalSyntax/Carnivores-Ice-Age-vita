@@ -17,6 +17,9 @@ Procedimiento interno (el texto público de la release está en `RELEASE_NOTES.m
       escopeta usa el modelo de otra arma (sin congelarse con Cuadrado).
 - [ ] Menús con botones: las esquinas blancas del cursor aparecen en menú principal, opciones (sliders con izquierda/derecha),
       páginas de caza, pausa y estadísticas; X selecciona, Círculo vuelve. No hay botones de Facebook.
+- [ ] Menú del port: Start + Select en la cacería (pausa el juego y abre el panel) y Select solo en los menús;
+      reasignar una acción con X, agregar con Cuadrado, borrar con Triángulo; Círculo guarda. Tras reiniciar,
+      `controls.txt` conserva lo asignado. El panel entra completo en pantalla.
 - [ ] En la cacería: sacar el arma (Cuadrado) y disparar (R/X) funciona; los botones táctiles casi no se ven
       (1 %) y siguen respondiendo al toque; la brújula se ve normal; Círculo hace la llamada y Start pausa.
 - [ ] Salir con PS y volver a entrar: la partida guardada se conserva.

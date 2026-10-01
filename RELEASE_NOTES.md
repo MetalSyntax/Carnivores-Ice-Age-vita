@@ -24,6 +24,10 @@ Requires `kubridge.skprx` and `libshacccg.suprx` (ShaRKBR33D).
 - **Fixed: purple sky and broken textures in zone 2 and later.** v1.0 unlocked every zone even when its files
   were missing, and the game loaded an empty terrain. Packs are now unlocked only when the OBB contains them;
   without it only the first zone can be selected.
+- **Port menu to remap the controls** (Start + Select, or Select in the game's menus): every in-game action
+  can be bound to any button (one or two each), plus camera speed, camera inversion (up/down, left/right),
+  stick swap and touch HUD opacity. Saved in `controls.txt` / `config.txt`.
+- **Photo mode on buttons**: R takes the photo, Right / Left zoom.
 - **Facebook buttons hidden** (options menu, statistics and trophy screens): they did nothing on Vita.
 - **Faster right-stick camera** with a finer response near the center.
 - The `CarnivoresBundleOne/Two.apk` files mentioned in v1.0 belong to *Carnivores: Dinosaur Hunter* and do not

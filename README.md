@@ -75,7 +75,15 @@ calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md)
 | Circle / D-Pad Up | Animal call |
 | Select / D-Pad Down | Map |
 | Start | Pause / back |
+| Start + Select | **Port menu**: remap buttons, camera options (Select alone in the game's menus) |
+| Photo mode: R / Right / Left | Take photo / zoom in / zoom out |
 | Touch screen | Original touch controls (all of them keep working, even when transparent) |
+
+Every in-game action can be **remapped** from the port menu: pick an action, Cross to set a button
+(Square adds a second one, Triangle clears it), Circle saves and closes. The same menu has the camera speed,
+camera inversion (up/down and left/right), stick swap and touch HUD opacity. Bindings are saved in
+`ux0:data/carnivoresiceage/controls.txt` (also editable by hand, `ACTION = BUTTON, BUTTON`); START is always
+pause / back.
 
 **In menus** (main menu, hunt setup, pause, statistics):
 
@@ -140,6 +148,7 @@ ux0:data/carnivoresiceage/
 ├── main.33.com.tatemgames.iceage.obb  <- (optional) Google Play expansion: zones 2-5, 4 weapons
 │                                         (also accepted as main.obb)
 ├── config.txt                         <- Settings (created on first boot)
+├── controls.txt                       <- Button bindings (created on first boot, port menu: Start + Select)
 └── logs/                              <- Incremental logs (carnivoresiceage_NNN.log)
 ```
 
@@ -154,6 +163,8 @@ ux0:data/carnivoresiceage/
 | `unlock_bundles` | `1` | Treat both content packs as purchased (there is no store on Vita); only applied when the OBB contains them |
 | `look_sensitivity` | `100` | Right stick camera speed in percent (10–400). Stacks with the in-game sensitivity slider |
 | `invert_look_y` | `0` | Invert the right stick vertical axis |
+| `invert_look_x` | `0` | Invert the right stick horizontal axis |
+| `swap_sticks` | `0` | Left stick looks, right stick moves |
 | `hud_opacity` | `1` | Opacity of the in-game touch buttons, percent of the original (0 hidden, 100 original). The compass and the weapon/call lists are not affected |
 | `msaa` | `1` | Anti-aliasing: 0 off (fastest), 1 = 2x, 2 = 4x |
 | `show_fps` | `0` | Every 5 s, log the frame rate and the CPU (engine) / GPU (swap) time per frame |
