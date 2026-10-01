@@ -47,11 +47,19 @@ calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md)
   game's own camera input — fast, smooth and independent of the frame rate.
 - **Clean HUD**: the touch buttons are drawn at 1 % opacity (they still work when touched); the compass keeps
   its full opacity. Configurable with `hud_opacity`.
-- **Content packs**: zones 2–5 and the extra weapons come from Ice Age's Google Play expansion file (`main.obb`).
-  They are unlocked only when that file is present and really contains them. The `CarnivoresBundleOne/Two.apk` of
-  *Carnivores: Dinosaur Hunter* belong to a different game and do not work here.
-- **No freeze on missing weapon files**: the plain shotgun model is in none of the 1.5.4 files, and on Android
-  the game locked up the first time a weapon without files was drawn. Such a weapon now keeps its own stats and
+- **Content packs from the Google Play OBB**: `game.apk` only has the first zone complete. Ice Age's expansion file
+  (`main.33.com.tatemgames.iceage.obb`, 27 MB) holds the rest: pack 1 = zones 2–3, shotgun and sniper rifle;
+  pack 2 = zones 4–5, double-barreled shotgun and crossbow. The engine reads it in place, like the APK. The packs
+  are unlocked only when the OBB is there and really contains them; unlocking a zone without its files loaded an
+  empty terrain (purple sky). The `CarnivoresBundleOne/Two.apk` of *Carnivores: Dinosaur Hunter* belong to a
+  different game and do not work here.
+- **Menus with buttons**: D-Pad / left stick move a yellow focus box (fitted to each button, cell or slider, plus
+  the button's own red "pressed" look), Cross selects, Circle goes back, Left / Right change sliders. Works in
+  the main menus, the hunt setup pages and the in-game pause / statistics screens.
+- **Facebook buttons hidden**: the share / login buttons do nothing without network access, so they are removed
+  from the options menu and the statistics and trophy screens.
+- **No freeze on missing weapon files**: without the OBB the shotgun has no model, and the game locked up the
+  first time a weapon without files was drawn. Such a weapon now keeps its own stats and
   borrows another weapon's model.
 
 ### 🕹️ Controls
@@ -69,15 +77,23 @@ calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md)
 | Start | Pause / back |
 | Touch screen | Original touch controls (all of them keep working, even when transparent) |
 
-Buttons press the game's own on-screen controls, so they only act while that control is on screen (in the
-menus, use the touch screen).
+**In menus** (main menu, hunt setup, pause, statistics):
+
+| Vita input | Action |
+|---|---|
+| D-Pad / Left Analog | Move the yellow focus box |
+| Cross | Select |
+| Circle / Start | Back |
+| Left / Right on a slider | Change its value |
+
+In-game, buttons press the game's own on-screen controls, so they only act while that control is on screen.
 
 ### ⚠️ Known Issues
 
 - **3D frame rate**: menus run at 60 FPS; hunting scenes are much slower (16–19 FPS measured before the FPU
   patch, not re-measured since). `msaa 0` helps if the GPU is the limit — `show_fps 1` tells which side it is.
-- **Plain shotgun model**: drawn with the double-barreled shotgun model (or the rifle without pack 2), see
-  [No freeze on missing weapon files](#-what-works).
+- **Without the OBB**: only the first zone can be played, and the shotgun (its model is in pack 1) is drawn
+  with another weapon's model, see [No freeze on missing weapon files](#-what-works).
 - **Online features**: Facebook, Google Play Games, ads and in-app purchases are stubbed out.
 - **No exit dialog**: the Android "Exit?" prompt is skipped; quit with the PS button.
 
@@ -95,7 +111,8 @@ To run this port on your PS Vita or PS TV, you will need:
    (`ur0:tai/config.txt` under `*KERNEL`).
 3. [**libshacccg.suprx**](https://github.com/Rinnegatamante/ShaRKBR33D/releases/latest) installed in `ur0:data/`.
 4. A legally obtained copy of **Carnivores: Ice Age 1.5.4** for Android (`com.tatemgames.iceage`, `armeabi`).
-   Optionally, its Google Play expansion file (`main.<version>.com.tatemgames.iceage.obb`).
+   Optionally (zones 2–5 and four more weapons), its Google Play expansion file
+   `main.33.com.tatemgames.iceage.obb`.
 
 ---
 
@@ -106,22 +123,24 @@ To run this port on your PS Vita or PS TV, you will need:
 3. Copy the APK there, renamed to `game.apk`.
 4. Open the APK with any zip extractor and copy `lib/armeabi/libIceAgeAndroid.so` and `lib/armeabi/libfmodex.so`
    to the same folder.
-5. *(Optional)* Copy Ice Age's Google Play expansion file, `main.33.com.tatemgames.iceage.obb` (from
-   `Android/obb/com.tatemgames.iceage/` on a device with the game installed), as is or renamed to `main.obb`
-   (zones 2–5, extra weapons).
-   Without it only the first zone is available; the log says `Content packs not unlocked` when no valid pack is found.
+5. *(Optional)* Copy Ice Age's Google Play expansion file `main.33.com.tatemgames.iceage.obb` (it is in
+   `Android/obb/com.tatemgames.iceage/` on a device where the game downloaded it) to the same folder, with that
+   name or renamed to `main.obb`. Do not extract it. On boot the log shows
+   `Marking both content bundles as owned`; without a valid OBB it shows `Content packs not unlocked` and only
+   the first zone is available.
 6. Launch the game from the LiveArea. The first boot creates `config.txt` and the `logs/` folder.
 
 ### Final File Structure in `ux0:data/carnivoresiceage/`
 
 ```text
 ux0:data/carnivoresiceage/
-├── game.apk                  <- The original APK, renamed
-├── libIceAgeAndroid.so       <- lib/armeabi/ in the APK
-├── libfmodex.so              <- lib/armeabi/ in the APK
-├── main.obb                  <- (optional) Google Play expansion: zones 2-5, extra weapons
-├── config.txt                <- Settings (created on first boot)
-└── logs/                     <- Incremental logs (carnivoresiceage_NNN.log)
+├── game.apk                           <- The original APK, renamed
+├── libIceAgeAndroid.so                <- lib/armeabi/ in the APK
+├── libfmodex.so                       <- lib/armeabi/ in the APK
+├── main.33.com.tatemgames.iceage.obb  <- (optional) Google Play expansion: zones 2-5, 4 weapons
+│                                         (also accepted as main.obb)
+├── config.txt                         <- Settings (created on first boot)
+└── logs/                              <- Incremental logs (carnivoresiceage_NNN.log)
 ```
 
 ### ⚙️ Options
@@ -132,7 +151,7 @@ ux0:data/carnivoresiceage/
 | Key | Default | Meaning |
 |---|---|---|
 | `language` | `0` | 0 = system language, 1 English, 2 German, 3 French, 4 Spanish |
-| `unlock_bundles` | `1` | Treat both content packs as purchased (there is no store on Vita); only if `main.obb` has them |
+| `unlock_bundles` | `1` | Treat both content packs as purchased (there is no store on Vita); only applied when the OBB contains them |
 | `look_sensitivity` | `100` | Right stick camera speed in percent (10–400). Stacks with the in-game sensitivity slider |
 | `invert_look_y` | `0` | Invert the right stick vertical axis |
 | `hud_opacity` | `1` | Opacity of the in-game touch buttons, percent of the original (0 hidden, 100 original). The compass and the weapon/call lists are not affected |

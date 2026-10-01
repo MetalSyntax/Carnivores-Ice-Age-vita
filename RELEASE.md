@@ -4,20 +4,22 @@ Procedimiento interno (el texto público de la release está en `RELEASE_NOTES.m
 
 ## 1. Verificación en consola (antes de etiquetar)
 
-- [ ] Instalar el VPK recién compilado y arrancar con `CarnivoresBundleOne.apk` / `CarnivoresBundleTwo.apk`
-      en `ux0:data/carnivoresiceage/`.
+- [ ] Instalar el VPK recién compilado con `main.33.com.tatemgames.iceage.obb` en `ux0:data/carnivoresiceage/`
+      (subido por FTP el 2026-10-01).
 - [ ] En el log más nuevo (`ux0:data/carnivoresiceage/logs/`):
-  - [x] `zip: ...CarnivoresBundleOne.apk opened (kept open)` y lo mismo para `BundleTwo` (confirmado, log 007).
-  - [ ] No aparece `zip: unexpected opcode` ni `inlined ferror() sites patched`.
-  - [ ] Eligiendo la escopeta doble ya **no** aparece `weapon 'dbsgun' has no model/animations`.
-- [ ] Área 3/4 (pack 1) y área 6 (pack 2) cargan; rifle de francotirador y ballesta se ven con su modelo.
-- [ ] Sin los packs: el juego sigue arrancando (fallback a `rifle`, sin congelarse con Cuadrado).
-- [ ] En la cacería los botones táctiles casi no se ven (1 %) y siguen respondiendo al toque; la brújula se ve
-      normal; Círculo hace la llamada y Start pausa.
+  - [ ] `bundle 1: ...main.33.com.tatemgames.iceage.obb, bundle 2: ...` (el mismo OBB para los dos packs).
+  - [ ] `Marking both content bundles as owned (unlock_bundles=1).`
+  - [ ] `zip: ...main.33.com.tatemgames.iceage.obb opened (kept open)`.
+  - [ ] Eligiendo la escopeta ya **no** aparece `weapon 'shotgun' has no model/animations`.
+- [ ] Zonas 2-3 (pack 1) y 4-5 (pack 2) cargan con cielo y terreno normales (sin morado); escopeta, rifle de
+      francotirador, escopeta doble y ballesta se ven con su modelo.
+- [ ] Sin el OBB: `Content packs not unlocked` en el log, solo la zona 1 elegible, el juego arranca y la
+      escopeta usa el modelo de otra arma (sin congelarse con Cuadrado).
+- [ ] Menús con botones: el cuadro amarillo aparece en menú principal, opciones (sliders con izquierda/derecha),
+      páginas de caza, pausa y estadísticas; X selecciona, Círculo vuelve. No hay botones de Facebook.
+- [ ] En la cacería: sacar el arma (Cuadrado) y disparar (R/X) funciona; los botones táctiles casi no se ven
+      (1 %) y siguen respondiendo al toque; la brújula se ve normal; Círculo hace la llamada y Start pausa.
 - [ ] Salir con PS y volver a entrar: la partida guardada se conserva.
-
-Si los packs siguen sin abrir: publicar igual, pero mover "Optional content packs" de *What works* a
-*Known issues* en `RELEASE_NOTES.md`.
 
 ## 2. Build
 
