@@ -234,6 +234,9 @@ _(vacía — anotar aquí cada bug confirmado en consola)_
 - `README.md` reescrito para GitHub (requisitos, instalación con tabla de archivos, packs, controles, opciones,
   problemas conocidos, reporte de bugs, build, créditos, licencias). `RELEASE_NOTES.md` = texto de la release.
 
+- Marcador de foco cambiado a pedido: contorno blanco semitransparente de 1 px lógico (`0xb4ffffff`), separado 1 px
+  del borde del elemento y sin relleno; velo blanco tenue (`0x30ffffff`) solo mientras X está apretado.
+
 ### Release v1.1 (preparada 2026-10-01, sin etiquetar)
 - `VITA_VERSION` 01.01. Novedades: navegación de menús con botones + cuadro amarillo, packs desde el OBB de Play
   (`main.33.com.tatemgames.iceage.obb`, subido a la consola por FTP), fix del cielo morado en zonas sin datos,

@@ -555,10 +555,11 @@ static void update_menu_navigation(uint32_t held, uint32_t pressed, float ax, fl
         nativeOnBackPressed(&jni, activity_obj);
 }
 
-// Focus box in logical space, same look as the Dinosaur Hunter port: a
-// translucent yellow fill (brighter while CROSS is held) plus a solid 1.5 px
-// yellow border, fitted to the control's own hit rectangle (GUI_PointInControl
-// rect, so it follows each element's size, scale and alignment).
+// Focus marker in logical space: a thin translucent white outline, fitted to
+// the control's own hit rectangle and drawn just outside it so the element's
+// art stays uncovered; a faint white veil only while CROSS is held, as press
+// feedback. The rectangle is the GUI_PointInControl one, so it follows each
+// element's size, scale and alignment.
 // GUI_DrawControls() only queues sprites (Sprites_Render() draws them at the
 // end of Render()), so drawing there leaves the box under the menu art. It is
 // drawn from a Font_Render() hook instead: Render() ends with Sprites_Render(),
@@ -587,15 +588,19 @@ static void draw_menu_focus(void) {
         return;
 
     float x0, y0, x1, y1;
-    const float t = 1.5f;
+    const float t = 1.0f;       // logical px (2 screen px)
+    const float gap = 1.0f;     // keep the outline off the element's edge
+    const uint32_t line = 0xb4ffffff, veil = 0x30ffffff;   // ABGR
     control_rect(menu_focused_ctl, &x0, &y0, &x1, &y1);
 
     focus_quads = 0;
-    focus_quad(x0, y0, x1, y1, (old_buttons & SCE_CTRL_CROSS) ? 0x5000c8ff : 0x2800c8ff);
-    focus_quad(x0 - t, y0 - t, x1 + t, y0,     0xff00c8ff);
-    focus_quad(x0 - t, y1,     x1 + t, y1 + t, 0xff00c8ff);
-    focus_quad(x0 - t, y0,     x0,     y1,     0xff00c8ff);
-    focus_quad(x1,     y0,     x1 + t, y1,     0xff00c8ff);
+    if (old_buttons & SCE_CTRL_CROSS)
+        focus_quad(x0, y0, x1, y1, veil);
+    x0 -= gap; y0 -= gap; x1 += gap; y1 += gap;
+    focus_quad(x0 - t, y0 - t, x1 + t, y0,     line);
+    focus_quad(x0 - t, y1,     x1 + t, y1 + t, line);
+    focus_quad(x0 - t, y0,     x0,     y1,     line);
+    focus_quad(x1,     y0,     x1 + t, y1,     line);
 
     GLboolean tex = glIsEnabled(GL_TEXTURE_2D);
     GLboolean blend = glIsEnabled(GL_BLEND);
