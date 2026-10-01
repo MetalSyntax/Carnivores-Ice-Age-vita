@@ -214,6 +214,10 @@ _(vacía — anotar aquí cada bug confirmado en consola)_
 - Indicador de foco en menús: rojo "sostenido" del motor (`+0x34 = 1` solo durante `GUI_DrawControls`, valor original
   restaurado después) + cuadro amarillo como en el port de Dinosaur Hunter (relleno `0x2800c8ff`, `0x50` con X
   apretado, borde 1,5 px `0xff00c8ff`) ajustado al rect de cada control.
+- Prueba 13 (log `carnivoresiceage_013.log`, sin errores): el cuadro no se veía. `GUI_DrawControls()` solo encola
+  sprites; `Render()` los dibuja al final con `Sprites_Render()` → `Font_Render()` → `GUI_RenderFade()`, así que el fondo
+  del menú tapaba el cuadro. Ahora se dibuja desde un hook de `Font_Render()` (ARM 0x438fc, como en Dinosaur Hunter),
+  en la proyección GUI del motor. **Pendiente de probar en consola.**
 
 ### Release v1.0
 - Build limpio verificado 2026-09-30 (`carnivoresiceage.vpk`, VITA_VERSION 01.00), incluye el parche de `ferror`.

@@ -558,9 +558,13 @@ static void update_menu_navigation(uint32_t held, uint32_t pressed, float ax, fl
 // Focus box in logical space, same look as the Dinosaur Hunter port: a
 // translucent yellow fill (brighter while CROSS is held) plus a solid 1.5 px
 // yellow border, fitted to the control's own hit rectangle (GUI_PointInControl
-// rect, so it follows each element's size, scale and alignment). Drawn right
-// after the engine's GUI pass; GL state touched here is restored before
-// returning.
+// rect, so it follows each element's size, scale and alignment).
+// GUI_DrawControls() only queues sprites (Sprites_Render() draws them at the
+// end of Render()), so drawing there leaves the box under the menu art. It is
+// drawn from a Font_Render() hook instead: Render() ends with Sprites_Render(),
+// Font_Render(), GUI_RenderFade(), all in the 2D GUI projection whose units
+// are the gui_controls[] logical space -- the same spot the Dinosaur Hunter
+// port uses. GL state touched here is restored before returning.
 #define FOCUS_MAX_QUADS 5
 
 static GLfloat focus_v[FOCUS_MAX_QUADS * 12];
@@ -599,14 +603,6 @@ static void draw_menu_focus(void) {
     GLboolean tc_arr = glIsEnabled(GL_TEXTURE_COORD_ARRAY);
     GLboolean v_arr = glIsEnabled(GL_VERTEX_ARRAY);
 
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrthof(0.0f, surf_w() * scale_x(), 0.0f, surf_h() * scale_y(), -1.0f, 1.0f);
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-
     if (tex) glDisable(GL_TEXTURE_2D);
     if (!blend) glEnable(GL_BLEND);
     if (tc_arr) glDisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -622,11 +618,13 @@ static void draw_menu_focus(void) {
     if (tc_arr) glEnableClientState(GL_TEXTURE_COORD_ARRAY);
     if (!blend) glDisable(GL_BLEND);
     if (tex) glEnable(GL_TEXTURE_2D);
+}
 
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
+static so_hook font_render_hook;
+
+static void Font_Render_hook(void) {
+    SO_CONTINUE(int, font_render_hook);
+    draw_menu_focus();
 }
 
 /* --- HUD opacity --------------------------------------------------------- *
@@ -638,7 +636,7 @@ static void draw_menu_focus(void) {
  * Navigations_Render(), not by gui_controls[], and keeps its opacity; so do
  * the weapon and call selection lists (game_weapons[], game_call_icons[]).
  * game_map and game_menu have no sprite (invisible hit areas). The same wrap
- * hides the Facebook buttons and draws the menu focus box. */
+ * hides the Facebook buttons and gives the menu focus its red "held" look. */
 
 #define CTL_COLOR 0x28
 
@@ -685,8 +683,6 @@ static void GUI_DrawControls_hook(void) {
             *color[i] = saved[i];
     if (focus)
         focus[CTL_TOUCH_HELD] = focus_held;
-
-    draw_menu_focus();
 }
 
 /* --- public API --------------------------------------------------------- */
@@ -702,6 +698,13 @@ void input_patch(void) {
         draw_controls_hook = hook_addr(draw, (uintptr_t) &GUI_DrawControls_hook);
     else
         l_warn("input: GUI_DrawControls not hooked");
+
+    // Menu focus box, drawn after the engine's text (ARM, checked with objdump).
+    uintptr_t fr = so_symbol(&so_mod, "_Z11Font_Renderv");
+    if (fr && !(fr & 1))
+        font_render_hook = hook_addr(fr, (uintptr_t) &Font_Render_hook);
+    else
+        l_warn("input: Font_Render not hooked, menu focus box disabled");
 
     touched_locations       = (float *) so_symbol(&so_mod, "gui_touched_locations");
     touched_start_locations = (float *) so_symbol(&so_mod, "gui_touched_start_locations");
