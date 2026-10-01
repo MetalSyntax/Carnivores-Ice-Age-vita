@@ -212,13 +212,13 @@ static void showTutorial(jmethodID id, va_list args) {
 }
 
 static void showAlertDialog(jmethodID id, va_list args) {
-    jint a = va_arg(args, jint);
-    jint b = va_arg(args, jint);
-    l_info("JNI: showAlertDialog(%d, %d) ignored", a, b);
+    jint code = va_arg(args, jint);
+    l_info("JNI: showAlertDialog(%d) ignored", (int) code);
 }
 
 static void unlockAchievement(jmethodID id, va_list args) {
-    logWithString("unlockAchievement", args);
+    jint ach_id = va_arg(args, jint);
+    l_info("JNI: unlockAchievement(%d)", (int) ach_id);
 }
 
 static void sendFlurryEvent(jmethodID id, va_list args) {

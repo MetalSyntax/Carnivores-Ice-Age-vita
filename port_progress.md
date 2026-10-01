@@ -196,6 +196,25 @@ _(vacía — anotar aquí cada bug confirmado en consola)_
   `Navigations_Render()`, fuera de `gui_controls[]`: no se toca. Listas de armas/llamadas quedan visibles.
   **Pendiente de probar en consola.**
 
+#### Prueba 10 (log `carnivoresiceage_010.log`) — navegación de menús rompía el juego al desenfundar
+- Síntoma: tras empezar la caza (log llega a `weapon 'shotgun' ... using 'dbsgun'`), pantalla morada con letras
+  arriba y controles rotos. El log no muestra crash.
+- Causa (pseudo-C): el modo menú se activaba cuando `game_movement_controller` no era usable, pero al desenfundar el
+  HUD pasa a subgrupo `0x800` (fire/alt_fire = `0x801`, movement = `0x4025` → no incluye `0x800`). El juego quedaba
+  en "modo menú": botones de juego muertos, X/Círculo = toque/atrás, y el foco escribía `+0x34` (estado *tocado* que
+  `GUI_TouchesEnded` convierte en latch `+0x35`/`GUI_ControlIsPressed`) en un control del HUD cada frame.
+- Fix (`input.c`): gameplay = movement/fire/weapon/photo_shot usable. Nunca se escribe `+0x34`; el foco se dibuja como
+  marco GL tras `GUI_DrawControls` (las celdas del menú de caza se dibujan con `Menu_Draw*Button`, sin sprite de
+  "pressed": por eso antes no se veía nada ahí). Solo controles con centro en pantalla (las páginas de caza se
+  deslizan). Sliders son tipo **1** (no 2; 2 = joystick) con rango `+0x178/+0x17C` (no 0..1).
+- Facebook: se quitaron los hooks de `GUI_SetControlVisible/Active` (`patch.c`): mientras `Menu_Init` no creaba los
+  botones de Facebook su ID era 0 = `game_movement_controller`. Se ocultan desde `input.c` solo con ID > 0 y se limpia
+  su latch `+0x35`. `java.c`: firmas corregidas (`showAlertDialog(int)`, `unlockAchievement(int)`, eran string).
+  **Pendiente de probar en consola.**
+- Indicador de foco en menús: rojo "sostenido" del motor (`+0x34 = 1` solo durante `GUI_DrawControls`, valor original
+  restaurado después) + cuadro amarillo como en el port de Dinosaur Hunter (relleno `0x2800c8ff`, `0x50` con X
+  apretado, borde 1,5 px `0xff00c8ff`) ajustado al rect de cada control.
+
 ### Release v1.0
 - Build limpio verificado 2026-09-30 (`carnivoresiceage.vpk`, VITA_VERSION 01.00), incluye el parche de `ferror`.
 - Procedimiento de publicación: `RELEASE.md`. Único pendiente antes de publicar: confirmar en consola que los

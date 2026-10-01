@@ -68,3 +68,7 @@ cmake-build-*/
 *.bak
 # Generado por psvita-toolkit build (rutas locales)
 /compile_commands.json
+
+# Screenshot
+screenshots/*
+Ice Age-20261001T132516Z-1-001/

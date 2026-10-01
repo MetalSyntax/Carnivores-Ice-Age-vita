@@ -47,6 +47,7 @@
 
 #include <falso_jni/FalsoJNI.h>
 #include <kubridge.h>
+#include <vitaGL.h>
 #include <so_util/so_util.h>
 
 #include <math.h>
@@ -67,7 +68,7 @@ extern jobject surface_obj;   // main.c
 #define MAX_STEP        12.0f
 #define ANALOG_DEADZONE 30
 // Right stick at full deflection with look_sensitivity 100, in logical px/s.
-#define LOOK_SPEED      360.0f
+#define LOOK_SPEED      720.0f
 #define REAL_SLOTS      8
 #define TOUCH_SLOTS     16      // gui_touched_locations[16][2]
 
@@ -84,6 +85,16 @@ static uint32_t *gui_active_subgroups;
 
 static int *ctl_move, *ctl_fire, *ctl_alt_fire, *ctl_weapon, *ctl_binoculars,
            *ctl_call, *ctl_map, *ctl_photo_shot, *ctl_photo_zoom_in, *ctl_photo_zoom_out;
+static int *ctl_fb_hunt, *ctl_fb_stats, *ctl_fb_trophy_stat, *ctl_fb_trophy, *ctl_fb_login;
+
+typedef float (*gui_get_slider_value_fn)(int id);
+typedef void (*gui_set_slider_value_fn)(int id, float val);
+static gui_get_slider_value_fn GUI_GetSliderValue;
+static gui_set_slider_value_fn GUI_SetSliderValue;
+
+static int menu_focused_ctl = -1;
+static uint64_t nav_repeat_timer;
+static uint32_t nav_last_direction;
 
 typedef struct {
     int active;
@@ -335,12 +346,16 @@ static void update_look(float ax, float ay) {
         return;
     }
 
-    // Quadratic response curve for fine aiming near the center. Logical space
+    // Blended linear and quadratic response curve for responsive aiming. Logical space
     // is y-up, so stick up (ay < 0) is a positive y drag, like a finger
     // moving up the screen.
     float speed = LOOK_SPEED * (float) setting_lookSensitivity / 100.0f * dt;
-    look_dx = ax * fabsf(ax) * speed;
-    look_dy = -ay * fabsf(ay) * speed * (setting_invertLookY ? -1.0f : 1.0f);
+    float norm_ax = ax;
+    float norm_ay = ay;
+    float curve_x = 0.4f * norm_ax + 0.6f * norm_ax * fabsf(norm_ax);
+    float curve_y = 0.4f * norm_ay + 0.6f * norm_ay * fabsf(norm_ay);
+    look_dx = curve_x * speed;
+    look_dy = -curve_y * speed * (setting_invertLookY ? -1.0f : 1.0f);
 }
 
 static void update_buttons(uint32_t held, uint32_t pressed) {
@@ -359,6 +374,261 @@ static void update_buttons(uint32_t held, uint32_t pressed) {
     }
 }
 
+/* --- Menu navigation & Facebook suppression ----------------------------- *
+ * Menus are driven with the D-pad / left stick + CROSS: the focused control
+ * gets a synthetic tap at its center, exactly like a finger. The engine's
+ * per-control touch state (+0x34 held, +0x35 release latch read by
+ * GUI_ControlIsPressed) is only borrowed for the duration of GUI_DrawControls():
+ * +0x34 = 1 makes the engine draw the focused button in its red "held" state,
+ * and the original value is put back right after, so touch logic never sees
+ * it. Hunt menu cells are drawn by Menu_Draw*Button() and have no "held"
+ * sprite, so a frame is also painted after GUI_DrawControls().
+ *
+ * Gameplay vs. menu: in game the active group is 9 and the HUD subgroup
+ * changes with the state (1 walking, 0x800 weapon drawn -- the movement stick
+ * is NOT in 0x800 --, 0x4000 photo mode...). Gameplay = any HUD control the
+ * physical buttons drive is usable; everything else (main menus, hunt setup,
+ * in-game pause/statistics/relocate) is navigated as a menu. */
+
+#define CTL_TYPE_BUTTON 0
+#define CTL_TYPE_SLIDER 1       // GUI_SetSliderValue/Params: value +0x174, min +0x178, max +0x17C
+#define CTL_TOUCH_HELD  0x34
+#define CTL_TOUCH_LATCH 0x35
+#define SLIDER_STEPS    20.0f
+
+static int in_gameplay(void) {
+    int *hud[] = { ctl_move, ctl_fire, ctl_weapon, ctl_photo_shot };
+    for (unsigned i = 0; i < sizeof(hud) / sizeof(hud[0]); i++)
+        if (hud[i] && control_usable(*hud[i]))
+            return 1;
+    return 0;
+}
+
+static int **fb_controls[] = { &ctl_fb_hunt, &ctl_fb_stats, &ctl_fb_trophy_stat, &ctl_fb_trophy,
+                               &ctl_fb_login };
+#define NUM_FB (sizeof(fb_controls) / sizeof(fb_controls[0]))
+
+static int is_fb_control(int idx) {
+    for (unsigned i = 0; i < NUM_FB; i++)
+        if (*fb_controls[i] && **fb_controls[i] == idx)
+            return 1;
+    return 0;
+}
+
+// Facebook is gone on Vita. All controls are created once by Menu_Init()
+// (game_movement_controller is control 0), so an index of 0 here only means
+// "not created yet" and must not be touched. The engine re-enables the share
+// buttons every frame on the statistics/trophy screens; hiding them right
+// before input and drawing, and dropping any release latch, keeps them inert.
+static void hide_social_controls(void) {
+    for (unsigned i = 0; i < NUM_FB; i++) {
+        int idx = *fb_controls[i] ? **fb_controls[i] : -1;
+        uint8_t *c = idx > 0 ? control(idx) : NULL;
+        if (!c)
+            continue;
+        c[0x32] = 0;
+        c[0x33] = 0;
+        c[CTL_TOUCH_LATCH] = 0;
+    }
+}
+
+static int is_menu_control_navigable(int idx) {
+    if (!control_usable(idx) || is_fb_control(idx))
+        return 0;
+    uint8_t *c = control(idx);
+    int type = *(int *) (c + 0x08);
+    if (type != CTL_TYPE_BUTTON && type != CTL_TYPE_SLIDER)
+        return 0;
+    float x0, y0, x1, y1;
+    control_rect(idx, &x0, &y0, &x1, &y1);
+    float w = x1 - x0, h = y1 - y0;
+    // Skip hit areas that are tiny or cover the whole screen.
+    if (w < 10.0f || h < 10.0f || (w > 450.0f && h > 280.0f))
+        return 0;
+    // Hunt pages slide horizontally: cells of the other pages stay usable
+    // but sit off screen.
+    float cx = (x0 + x1) * 0.5f, cy = (y0 + y1) * 0.5f;
+    float lw = surf_w() * scale_x(), lh = surf_h() * scale_y();
+    return cx >= 0.0f && cx <= lw && cy >= 0.0f && cy <= lh;
+}
+
+static int nav_center(int idx, float *sx, float *sy) {
+    return is_menu_control_navigable(idx) && control_center_surface(idx, sx, sy);
+}
+
+static int find_initial_menu_focus(void) {
+    int best = -1;
+    float best_score = 1e9f;
+    for (int i = 0; gui_controls_count && i < *gui_controls_count; i++) {
+        float sx, sy;
+        if (!nav_center(i, &sx, &sy))
+            continue;
+        float score = sy * 2.0f + sx;  // top-most, then left-most
+        if (score < best_score) {
+            best_score = score;
+            best = i;
+        }
+    }
+    return best;
+}
+
+// Nearest control in the pressed direction (surface space, y down); if there
+// is none, wrap to the farthest one on the opposite side.
+static int find_next_menu_control(int cur, uint32_t dir) {
+    float cur_x, cur_y;
+    if (!nav_center(cur, &cur_x, &cur_y))
+        return find_initial_menu_focus();
+
+    int best = -1, wrap = -1;
+    float best_dist = 1e9f, wrap_dist = -1.0f;
+
+    for (int i = 0; i < *gui_controls_count; i++) {
+        float cx, cy;
+        if (i == cur || !nav_center(i, &cx, &cy))
+            continue;
+        float dx = cx - cur_x, dy = cy - cur_y;
+        float along, across;
+        if (dir & SCE_CTRL_DOWN)       { along =  dy; across = dx; }
+        else if (dir & SCE_CTRL_UP)    { along = -dy; across = dx; }
+        else if (dir & SCE_CTRL_RIGHT) { along =  dx; across = dy; }
+        else                           { along = -dx; across = dy; }
+
+        if (along > 8.0f) {
+            float dist = along + 2.0f * fabsf(across);
+            if (dist < best_dist) { best_dist = dist; best = i; }
+        } else if (along < -8.0f && fabsf(across) < 40.0f) {
+            if (-along > wrap_dist) { wrap_dist = -along; wrap = i; }
+        }
+    }
+    return best >= 0 ? best : (wrap >= 0 ? wrap : cur);
+}
+
+static void step_slider(int idx, int dir) {
+    if (!GUI_GetSliderValue || !GUI_SetSliderValue)
+        return;
+    uint8_t *c = control(idx);
+    float lo = *(float *) (c + 0x178), hi = *(float *) (c + 0x17C);
+    if (!(hi > lo))
+        return;
+    float v = GUI_GetSliderValue(idx) + (float) dir * (hi - lo) / SLIDER_STEPS;
+    GUI_SetSliderValue(idx, clampf(v, lo, hi));
+}
+
+static void update_menu_navigation(uint32_t held, uint32_t pressed, float ax, float ay) {
+    if (!is_menu_control_navigable(menu_focused_ctl))
+        menu_focused_ctl = find_initial_menu_focus();
+
+    uint32_t dir = 0;
+    if ((held & SCE_CTRL_UP)    || ay < -0.5f) dir = SCE_CTRL_UP;
+    else if ((held & SCE_CTRL_DOWN)  || ay > 0.5f) dir = SCE_CTRL_DOWN;
+    else if ((held & SCE_CTRL_LEFT)  || ax < -0.5f) dir = SCE_CTRL_LEFT;
+    else if ((held & SCE_CTRL_RIGHT) || ax > 0.5f) dir = SCE_CTRL_RIGHT;
+
+    uint64_t now = sceKernelGetProcessTimeWide();
+    int step = 0;
+    if (dir && dir != nav_last_direction) {
+        step = 1;
+        nav_repeat_timer = now + 280000;
+    } else if (dir && now >= nav_repeat_timer) {
+        step = 1;
+        nav_repeat_timer = now + 120000;
+    }
+    nav_last_direction = dir;
+
+    if (step && menu_focused_ctl >= 0) {
+        uint8_t *c = control(menu_focused_ctl);
+        if (*(int *) (c + 0x08) == CTL_TYPE_SLIDER && (dir & (SCE_CTRL_LEFT | SCE_CTRL_RIGHT)))
+            step_slider(menu_focused_ctl, (dir & SCE_CTRL_LEFT) ? -1 : 1);
+        else
+            menu_focused_ctl = find_next_menu_control(menu_focused_ctl, dir);
+    }
+
+    // CROSS: tap the focused control.
+    float sx, sy;
+    if ((pressed & SCE_CTRL_CROSS) && nav_center(menu_focused_ctl, &sx, &sy)) {
+        touchesBegan(&jni, surface_obj, sx, sy);
+        touchesEnded(&jni, surface_obj, sx, sy);
+    }
+
+    // CIRCLE: back, like START / the Android back key.
+    if ((pressed & SCE_CTRL_CIRCLE) && nativeOnBackPressed)
+        nativeOnBackPressed(&jni, activity_obj);
+}
+
+// Focus box in logical space, same look as the Dinosaur Hunter port: a
+// translucent yellow fill (brighter while CROSS is held) plus a solid 1.5 px
+// yellow border, fitted to the control's own hit rectangle (GUI_PointInControl
+// rect, so it follows each element's size, scale and alignment). Drawn right
+// after the engine's GUI pass; GL state touched here is restored before
+// returning.
+#define FOCUS_MAX_QUADS 5
+
+static GLfloat focus_v[FOCUS_MAX_QUADS * 12];
+static uint32_t focus_c[FOCUS_MAX_QUADS * 6];
+static int focus_quads;
+
+static void focus_quad(float x0, float y0, float x1, float y1, uint32_t abgr) {
+    if (focus_quads >= FOCUS_MAX_QUADS)
+        return;
+    GLfloat *v = &focus_v[focus_quads * 12];
+    v[0] = x0; v[1]  = y0;  v[2] = x1;  v[3] = y0;  v[4]  = x1; v[5]  = y1;
+    v[6] = x0; v[7]  = y0;  v[8] = x1;  v[9] = y1;  v[10] = x0; v[11] = y1;
+    for (int i = 0; i < 6; i++)
+        focus_c[focus_quads * 6 + i] = abgr;
+    focus_quads++;
+}
+
+static void draw_menu_focus(void) {
+    if (in_gameplay() || !is_menu_control_navigable(menu_focused_ctl))
+        return;
+
+    float x0, y0, x1, y1;
+    const float t = 1.5f;
+    control_rect(menu_focused_ctl, &x0, &y0, &x1, &y1);
+
+    focus_quads = 0;
+    focus_quad(x0, y0, x1, y1, (old_buttons & SCE_CTRL_CROSS) ? 0x5000c8ff : 0x2800c8ff);
+    focus_quad(x0 - t, y0 - t, x1 + t, y0,     0xff00c8ff);
+    focus_quad(x0 - t, y1,     x1 + t, y1 + t, 0xff00c8ff);
+    focus_quad(x0 - t, y0,     x0,     y1,     0xff00c8ff);
+    focus_quad(x1,     y0,     x1 + t, y1,     0xff00c8ff);
+
+    GLboolean tex = glIsEnabled(GL_TEXTURE_2D);
+    GLboolean blend = glIsEnabled(GL_BLEND);
+    GLboolean col_arr = glIsEnabled(GL_COLOR_ARRAY);
+    GLboolean tc_arr = glIsEnabled(GL_TEXTURE_COORD_ARRAY);
+    GLboolean v_arr = glIsEnabled(GL_VERTEX_ARRAY);
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrthof(0.0f, surf_w() * scale_x(), 0.0f, surf_h() * scale_y(), -1.0f, 1.0f);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    if (tex) glDisable(GL_TEXTURE_2D);
+    if (!blend) glEnable(GL_BLEND);
+    if (tc_arr) glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    if (!v_arr) glEnableClientState(GL_VERTEX_ARRAY);
+    if (!col_arr) glEnableClientState(GL_COLOR_ARRAY);
+
+    glVertexPointer(2, GL_FLOAT, 0, focus_v);
+    glColorPointer(4, GL_UNSIGNED_BYTE, 0, focus_c);
+    glDrawArrays(GL_TRIANGLES, 0, focus_quads * 6);
+
+    if (!col_arr) glDisableClientState(GL_COLOR_ARRAY);
+    if (!v_arr) glDisableClientState(GL_VERTEX_ARRAY);
+    if (tc_arr) glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    if (!blend) glDisable(GL_BLEND);
+    if (tex) glEnable(GL_TEXTURE_2D);
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
 /* --- HUD opacity --------------------------------------------------------- *
  * The in-game touch buttons are redundant with the physical controls, so
  * GUI_DrawControls() is wrapped to draw them with hud_opacity % of their alpha.
@@ -367,20 +637,31 @@ static void update_buttons(uint32_t held, uint32_t pressed) {
  * duration of the draw and restored afterwards. The compass/minimap is drawn by
  * Navigations_Render(), not by gui_controls[], and keeps its opacity; so do
  * the weapon and call selection lists (game_weapons[], game_call_icons[]).
- * game_map and game_menu have no sprite (invisible hit areas). */
+ * game_map and game_menu have no sprite (invisible hit areas). The same wrap
+ * hides the Facebook buttons and draws the menu focus box. */
 
 #define CTL_COLOR 0x28
 
 static so_hook draw_controls_hook;
 
 static void GUI_DrawControls_hook(void) {
+    hide_social_controls();
+
     int **hud[] = { &ctl_move, &ctl_fire, &ctl_alt_fire, &ctl_weapon, &ctl_binoculars,
                     &ctl_call, &ctl_photo_shot, &ctl_photo_zoom_in, &ctl_photo_zoom_out };
     uint32_t saved[sizeof(hud) / sizeof(hud[0])];
     uint32_t *color[sizeof(hud) / sizeof(hud[0])];
+    int scale_alpha = setting_hudOpacity < 100;
+
+    // Menu focus: red "held" look, only while drawing.
+    uint8_t *focus = (!in_gameplay() && is_menu_control_navigable(menu_focused_ctl))
+                     ? control(menu_focused_ctl) : NULL;
+    uint8_t focus_held = focus ? focus[CTL_TOUCH_HELD] : 0;
+    if (focus)
+        focus[CTL_TOUCH_HELD] = 1;
 
     for (unsigned i = 0; i < sizeof(hud) / sizeof(hud[0]); i++) {
-        uint8_t *c = *hud[i] ? control(**hud[i]) : NULL;
+        uint8_t *c = (scale_alpha && *hud[i]) ? control(**hud[i]) : NULL;
         color[i] = c ? (uint32_t *) (c + CTL_COLOR) : NULL;
         if (!color[i])
             continue;
@@ -402,6 +683,10 @@ static void GUI_DrawControls_hook(void) {
     for (unsigned i = 0; i < sizeof(hud) / sizeof(hud[0]); i++)
         if (color[i])
             *color[i] = saved[i];
+    if (focus)
+        focus[CTL_TOUCH_HELD] = focus_held;
+
+    draw_menu_focus();
 }
 
 /* --- public API --------------------------------------------------------- */
@@ -412,12 +697,11 @@ static void GUI_DrawControls_hook(void) {
     } while (0)
 
 void input_patch(void) {
-    // HUD buttons opacity (hud_opacity); ARM function, checked with objdump.
     uintptr_t draw = so_symbol(&so_mod, "_Z16GUI_DrawControlsv");
-    if (setting_hudOpacity < 100 && draw && !(draw & 1))
+    if (draw && !(draw & 1))
         draw_controls_hook = hook_addr(draw, (uintptr_t) &GUI_DrawControls_hook);
-    else if (setting_hudOpacity < 100)
-        l_warn("input: GUI_DrawControls not hooked, hud_opacity ignored");
+    else
+        l_warn("input: GUI_DrawControls not hooked");
 
     touched_locations       = (float *) so_symbol(&so_mod, "gui_touched_locations");
     touched_start_locations = (float *) so_symbol(&so_mod, "gui_touched_start_locations");
@@ -457,6 +741,15 @@ void input_init(void) {
     SYM(ctl_photo_zoom_in,  "game_photomode_zoom_in");
     SYM(ctl_photo_zoom_out, "game_photomode_zoom_out");
 
+    ctl_fb_hunt        = (int *) so_symbol(&so_mod, "game_share_hunt_statistic_with_facebook");
+    ctl_fb_stats       = (int *) so_symbol(&so_mod, "game_share_statistics_with_facebook");
+    ctl_fb_trophy_stat = (int *) so_symbol(&so_mod, "game_share_trophy_statistic_with_facebook");
+    ctl_fb_trophy      = (int *) so_symbol(&so_mod, "game_share_trophy_with_facebook");
+    ctl_fb_login       = (int *) so_symbol(&so_mod, "menu_options_facebook_login");
+
+    GUI_GetSliderValue = (gui_get_slider_value_fn) so_symbol(&so_mod, "_Z18GUI_GetSliderValuei");
+    GUI_SetSliderValue = (gui_set_slider_value_fn) so_symbol(&so_mod, "_Z18GUI_SetSliderValueif");
+
     for (int s = 0; s < REAL_SLOTS; s++)
         real[s].id = -1;
 
@@ -488,9 +781,23 @@ void input_update(void) {
     }
 
     update_real_touch();
-    update_buttons(pad.buttons, pressed);
-    update_move(axis(pad.lx), axis(pad.ly));
-    update_look(axis(pad.rx), axis(pad.ry));
+
+    if (in_gameplay()) {
+        menu_focused_ctl = -1;
+        update_buttons(pad.buttons, pressed);
+        update_move(axis(pad.lx), axis(pad.ly));
+        update_look(axis(pad.rx), axis(pad.ry));
+    } else {
+        // Leaving gameplay (pause, statistics...): drop held synthetic touches.
+        t_end(&move_touch);
+        for (unsigned i = 0; i < NUM_BUTTONS; i++)
+            t_end(&buttons[i].t);
+        look_dx = look_dy = 0.0f;
+        update_menu_navigation(pad.buttons, pressed, axis(pad.lx), axis(pad.ly));
+    }
+
+    // After this frame's touches: drop any release latch on the share buttons.
+    hide_social_controls();
 }
 
 void input_release_all(void) {
@@ -506,5 +813,7 @@ void input_release_all(void) {
             real[s].id = -1;
         }
     }
+    menu_focused_ctl = -1;
+    nav_last_direction = 0;
     old_buttons = 0;
 }
