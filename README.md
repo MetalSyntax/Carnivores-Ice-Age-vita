@@ -53,8 +53,8 @@ calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md)
   are unlocked only when the OBB is there and really contains them; unlocking a zone without its files loaded an
   empty terrain (purple sky). The `CarnivoresBundleOne/Two.apk` of *Carnivores: Dinosaur Hunter* belong to a
   different game and do not work here.
-- **Menus with buttons**: D-Pad / left stick move a thin white marker (an outline fitted to each button, cell or
-  slider, plus the button's own red "pressed" look), Cross selects, Circle goes back, Left / Right change sliders. Works in
+- **Menus with buttons**: D-Pad / left stick move a cursor drawn as four translucent white corners around what
+  each button, hunt cell or slider actually draws (plus the button's own red "pressed" look), Cross selects, Circle goes back, Left / Right change sliders. Works in
   the main menus, the hunt setup pages and the in-game pause / statistics screens.
 - **Facebook buttons hidden**: the share / login buttons do nothing without network access, so they are removed
   from the options menu and the statistics and trophy screens.
@@ -81,7 +81,7 @@ calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md)
 
 | Vita input | Action |
 |---|---|
-| D-Pad / Left Analog | Move the white focus marker |
+| D-Pad / Left Analog | Move the cursor (white corners) |
 | Cross | Select |
 | Circle / Start | Back |
 | Left / Right on a slider | Change its value |

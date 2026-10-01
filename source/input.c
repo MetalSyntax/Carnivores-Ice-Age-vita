@@ -92,6 +92,11 @@ typedef void (*gui_set_slider_value_fn)(int id, float val);
 static gui_get_slider_value_fn GUI_GetSliderValue;
 static gui_set_slider_value_fn GUI_SetSliderValue;
 
+static void (*Sprites_GetSpriteSize)(void *sprite, float *size);
+static void (*Font_GetTextSize)(char *text, char *font, float *size);
+static int *fonts_count;
+static uint8_t *menu_hunt_cell_empty;
+
 static int menu_focused_ctl = -1;
 static uint64_t nav_repeat_timer;
 static uint32_t nav_last_direction;
@@ -555,18 +560,120 @@ static void update_menu_navigation(uint32_t held, uint32_t pressed, float ax, fl
         nativeOnBackPressed(&jni, activity_obj);
 }
 
-// Focus marker in logical space: a thin translucent white outline, fitted to
-// the control's own hit rectangle and drawn just outside it so the element's
-// art stays uncovered; a faint white veil only while CROSS is held, as press
-// feedback. The rectangle is the GUI_PointInControl one, so it follows each
-// element's size, scale and alignment.
-// GUI_DrawControls() only queues sprites (Sprites_Render() draws them at the
-// end of Render()), so drawing there leaves the box under the menu art. It is
-// drawn from a Font_Render() hook instead: Render() ends with Sprites_Render(),
-// Font_Render(), GUI_RenderFade(), all in the 2D GUI projection whose units
-// are the gui_controls[] logical space -- the same spot the Dinosaur Hunter
-// port uses. GL state touched here is restored before returning.
-#define FOCUS_MAX_QUADS 5
+/* Focus marker, same as the Dinosaur Hunter port: four translucent white
+ * corner brackets (~70 % alpha, arms 25 % of the side, max 10 px) around what
+ * the control actually draws, plus a faint white veil while CROSS is held.
+ *
+ * control_visual_rect() mirrors GUI_DrawControls() (identical in both games):
+ * the sprite at +0x38 with Sprites_DrawSprite's alignment ((flags & 3) | 8
+ * unless v-centered), a slider's knob at +0x40 offset by +0x14/+0x18, the
+ * label at +0x6C (font +0x48, scale +0x68, offset +0x16C/+0x170). Hunt menu
+ * cells have no sprite of their own: Menu_UpdateCellButtonPosition() puts the
+ * 90x68 touch rectangle 16 px above the menu_hunt_cell_empty hexagon that
+ * Menu_Draw*Button() draws, so the box uses that sprite instead. The touch
+ * still goes to the center of the touch rectangle.
+ *
+ * GUI_DrawControls() only queues sprites (Sprites_Render() draws them at the
+ * end of Render()), so the marker is drawn from a Font_Render() hook: Render()
+ * ends with Sprites_Render(), Font_Render(), GUI_RenderFade(), all in the 2D
+ * GUI projection whose units are the gui_controls[] logical space. GL state
+ * touched here is restored before returning. */
+#define FOCUS_MAX_QUADS 9
+#define HUNT_CELL_W     90.0f
+#define HUNT_CELL_H     68.0f
+#define HUNT_CELL_DROP  16.0f
+
+typedef struct { float x0, y0, x1, y1; int set; } Box;
+
+static void box_add(Box *b, float x0, float y0, float x1, float y1) {
+    if (x1 <= x0 || y1 <= y0)
+        return;
+    if (!b->set) {
+        b->x0 = x0; b->y0 = y0; b->x1 = x1; b->y1 = y1;
+        b->set = 1;
+        return;
+    }
+    if (x0 < b->x0) b->x0 = x0;
+    if (y0 < b->y0) b->y0 = y0;
+    if (x1 > b->x1) b->x1 = x1;
+    if (y1 > b->y1) b->y1 = y1;
+}
+
+static int sprite_size(void *sprite, float *w, float *h) {
+    float size[2] = { 0.0f, 0.0f };
+    // Sprites_GetSpriteSize() leaves `size` untouched for an invalid handle.
+    if (Sprites_GetSpriteSize && sprite)
+        Sprites_GetSpriteSize(sprite, size);
+    *w = size[0];
+    *h = size[1];
+    return size[0] > 0.0f && size[1] > 0.0f;
+}
+
+static void text_size(const char *text, const char *font, float *w, float *h) {
+    float size[2] = { 0.0f, 0.0f };
+    if (Font_GetTextSize && fonts_count && *fonts_count > 0)
+        Font_GetTextSize((char *) text, (char *) font, size);
+    if (w) *w = size[0];
+    if (h) *h = size[1];
+}
+
+static void box_add_sprite(Box *b, void *sprite, float x, float y, float scale, uint32_t sflags) {
+    float w, h;
+    if (!sprite_size(sprite, &w, &h))
+        return;
+    w *= scale;
+    h *= scale;
+    float x0 = (sflags & 1) ? x : (sflags & 2) ? x - w : x - w * 0.5f;
+    float y0 = (sflags & 8) ? y : (sflags & 4) ? y - h : y - h * 0.5f;
+    box_add(b, x0, y0, x0 + w, y0 + h);
+}
+
+static void control_visual_rect(int idx, float *x0, float *y0, float *x1, float *y1) {
+    uint8_t *c = control(idx);
+    float x = *(float *) (c + 0x0C), y = *(float *) (c + 0x10);
+    float scale = *(float *) (c + 0x2C);
+    uint32_t flags = *(uint32_t *) (c + 0x24);
+    int type = *(int *) (c + 0x08);
+    Box b = {0};
+
+    if (c[0x30]) {
+        uint32_t sflags = (flags & 3) | ((flags & 8) ? 0 : 8);
+        box_add_sprite(&b, c + 0x38, x, y, scale, sflags);
+        if (type == CTL_TYPE_SLIDER)
+            box_add_sprite(&b, c + 0x40, x + *(float *) (c + 0x14), y + *(float *) (c + 0x18),
+                           scale, sflags);
+    }
+
+    const char *text = (const char *) (c + 0x6C);
+    if (c[0x31] && type == CTL_TYPE_BUTTON && text[0]) {
+        float fs = *(float *) (c + 0x68), tw, th, lh;
+        text_size(text, (const char *) (c + 0x48), &tw, &th);
+        text_size("A", (const char *) (c + 0x48), NULL, &lh);
+        tw *= fs; th *= fs; lh *= fs;
+        float tx = x + *(float *) (c + 0x16C), ty = y + *(float *) (c + 0x170);
+        float left = (flags & 2) ? tx - tw : (flags & 4) ? tx - tw * 0.5f : tx;
+        float top = (flags & 8) ? ty + lh * 0.5f : ty + lh;
+        box_add(&b, left, top - th, left + tw, top);
+    }
+
+    float hx0, hy0, hx1, hy1;
+    control_rect(idx, &hx0, &hy0, &hx1, &hy1);
+
+    if (!b.set && !c[0x30] && !c[0x31] && *(int *) c == 1 &&
+        fabsf(*(float *) (c + 0x1C) - HUNT_CELL_W) < 0.5f &&
+        fabsf(*(float *) (c + 0x20) - HUNT_CELL_H) < 0.5f) {
+        float w, h;
+        if (!sprite_size(menu_hunt_cell_empty, &w, &h)) {
+            w = HUNT_CELL_W;
+            h = HUNT_CELL_H + HUNT_CELL_DROP;
+        }
+        box_add(&b, hx0, hy0 - HUNT_CELL_DROP, hx0 + w, hy0 - HUNT_CELL_DROP + h);
+    }
+
+    if (!b.set)
+        box_add(&b, hx0, hy0, hx1, hy1);
+    *x0 = b.x0; *y0 = b.y0; *x1 = b.x1; *y1 = b.y1;
+}
 
 static GLfloat focus_v[FOCUS_MAX_QUADS * 12];
 static uint32_t focus_c[FOCUS_MAX_QUADS * 6];
@@ -588,19 +695,27 @@ static void draw_menu_focus(void) {
         return;
 
     float x0, y0, x1, y1;
-    const float t = 1.0f;       // logical px (2 screen px)
-    const float gap = 1.0f;     // keep the outline off the element's edge
-    const uint32_t line = 0xb4ffffff, veil = 0x30ffffff;   // ABGR
-    control_rect(menu_focused_ctl, &x0, &y0, &x1, &y1);
+    control_visual_rect(menu_focused_ctl, &x0, &y0, &x1, &y1);
+    x0 -= 2.0f; y0 -= 2.0f; x1 += 2.0f; y1 += 2.0f;
+    // Corner brackets only, so the control itself stays readable; a faint
+    // fill while Cross is held is the "pressed" feedback.
+    const uint32_t col = 0xb4ffffff;   // ABGR
+    const float t = 1.5f;
+    float lx = (x1 - x0) * 0.25f, ly = (y1 - y0) * 0.25f;
+    if (lx > 10.0f) lx = 10.0f;
+    if (ly > 10.0f) ly = 10.0f;
 
     focus_quads = 0;
     if (old_buttons & SCE_CTRL_CROSS)
-        focus_quad(x0, y0, x1, y1, veil);
-    x0 -= gap; y0 -= gap; x1 += gap; y1 += gap;
-    focus_quad(x0 - t, y0 - t, x1 + t, y0,     line);
-    focus_quad(x0 - t, y1,     x1 + t, y1 + t, line);
-    focus_quad(x0 - t, y0,     x0,     y1,     line);
-    focus_quad(x1,     y0,     x1 + t, y1,     line);
+        focus_quad(x0, y0, x1, y1, 0x28ffffff);
+    focus_quad(x0 - t, y0 - t, x0 + lx, y0, col);   // bottom-left (y up)
+    focus_quad(x0 - t, y0, x0, y0 + ly, col);
+    focus_quad(x1 - lx, y0 - t, x1 + t, y0, col);   // bottom-right
+    focus_quad(x1, y0, x1 + t, y0 + ly, col);
+    focus_quad(x0 - t, y1, x0 + lx, y1 + t, col);   // top-left
+    focus_quad(x0 - t, y1 - ly, x0, y1, col);
+    focus_quad(x1 - lx, y1, x1 + t, y1 + t, col);   // top-right
+    focus_quad(x1, y1 - ly, x1 + t, y1, col);
 
     GLboolean tex = glIsEnabled(GL_TEXTURE_2D);
     GLboolean blend = glIsEnabled(GL_BLEND);
@@ -757,6 +872,12 @@ void input_init(void) {
 
     GUI_GetSliderValue = (gui_get_slider_value_fn) so_symbol(&so_mod, "_Z18GUI_GetSliderValuei");
     GUI_SetSliderValue = (gui_set_slider_value_fn) so_symbol(&so_mod, "_Z18GUI_SetSliderValueif");
+
+    // Menu focus marker: what each control draws (see control_visual_rect).
+    Sprites_GetSpriteSize = (void *) so_symbol(&so_mod, "_Z21Sprites_GetSpriteSizeP14_SpriteHandlerP9_Vector2D");
+    Font_GetTextSize      = (void *) so_symbol(&so_mod, "_Z16Font_GetTextSizePcS_P9_Vector2D");
+    fonts_count           = (int *) so_symbol(&so_mod, "fonts_count");
+    menu_hunt_cell_empty  = (uint8_t *) so_symbol(&so_mod, "menu_hunt_cell_empty");
 
     for (int s = 0; s < REAL_SLOTS; s++)
         real[s].id = -1;

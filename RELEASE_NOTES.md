@@ -14,8 +14,8 @@ Requires `kubridge.skprx` and `libshacccg.suprx` (ShaRKBR33D).
 
 ## What's new in v1.1
 
-- **Menus with physical buttons.** D-Pad / left stick move a thin white marker that outlines each button, hunt
-  cell or slider without covering it; the focused button also shows its red "pressed" look. Cross selects, Circle goes back, Left / Right
+- **Menus with physical buttons.** D-Pad / left stick move a cursor drawn as four translucent white corners
+  around each button, hunt cell or slider, without covering it; the focused button also shows its red "pressed" look. Cross selects, Circle goes back, Left / Right
   change sliders. Works in the main menus, the hunt setup pages and the in-game pause / statistics screens.
 - **Content packs from the Google Play OBB.** Copy `main.33.com.tatemgames.iceage.obb` (or `main.obb`) to
   `ux0:data/carnivoresiceage/`, without extracting it:

@@ -236,6 +236,11 @@ _(vacía — anotar aquí cada bug confirmado en consola)_
 
 - Marcador de foco cambiado a pedido: contorno blanco semitransparente de 1 px lógico (`0xb4ffffff`), separado 1 px
   del borde del elemento y sin relleno; velo blanco tenue (`0x30ffffff`) solo mientras X está apretado.
+- No gustó: se copió el cursor actual de Dinosaur Hunter (commits `97c8cde` + `b33d580` de ese repo): cuatro esquinas
+  blancas `0xb4ffffff` de 1,5 px (brazos 25 % del lado, máx. 10 px), velo `0x28ffffff` con X apretado, alrededor de
+  `control_visual_rect()` (lo que dibuja el control: sprite, knob, texto; en celdas de caza el hexágono
+  `menu_hunt_cell_empty`, 16 px debajo de la zona táctil). `GUI_DrawControls` y `Menu_UpdateCellButtonPosition`
+  son idénticos en los dos juegos (verificado en el pseudo-C).
 
 ### Release v1.1 (preparada 2026-10-01, sin etiquetar)
 - `VITA_VERSION` 01.01. Novedades: navegación de menús con botones + cuadro amarillo, packs desde el OBB de Play

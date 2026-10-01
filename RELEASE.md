@@ -15,7 +15,7 @@ Procedimiento interno (el texto público de la release está en `RELEASE_NOTES.m
       francotirador, escopeta doble y ballesta se ven con su modelo.
 - [ ] Sin el OBB: `Content packs not unlocked` en el log, solo la zona 1 elegible, el juego arranca y la
       escopeta usa el modelo de otra arma (sin congelarse con Cuadrado).
-- [ ] Menús con botones: el marcador blanco aparece en menú principal, opciones (sliders con izquierda/derecha),
+- [ ] Menús con botones: las esquinas blancas del cursor aparecen en menú principal, opciones (sliders con izquierda/derecha),
       páginas de caza, pausa y estadísticas; X selecciona, Círculo vuelve. No hay botones de Facebook.
 - [ ] En la cacería: sacar el arma (Cuadrado) y disparar (R/X) funciona; los botones táctiles casi no se ven
       (1 %) y siguen respondiendo al toque; la brújula se ve normal; Círculo hace la llamada y Start pausa.
