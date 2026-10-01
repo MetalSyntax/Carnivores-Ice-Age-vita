@@ -73,8 +73,9 @@ Orden de `IceAgeAndroid.onCreate → postDownloadInit → continueCreating` + hi
   `ZIP_FL_NODIR` ignora directorios, por eso `assets/pack0/*.ogg|.crt|.3dn|...` se encuentran por nombre.
 - Los nombres literales muestreados del `.so` (`gui.tga→gui.crt`, `menu_01`, `binoculars`, `compas.3dn`,
   `particle`, `vh/vs.tga`, ...) existen en `assets/pack0/` del APK; `menu_01_ipad` no (solo modo iPad y
-  `DidFinishLaunching` fija `is_ipad = 0`) → este APK (44 MB, 188 MB descomprimido) parece traer el contenido del
-  OBB (EXPANSION_SIZE 27 MB) integrado. Si faltara algo, copiar el OBB como `main.obb`.
+  `DidFinishLaunching` fija `is_ipad = 0`). **Corregido 2026-10-01:** el APK trae solo `area1` completa; de
+  `area2..area5` solo trae los `.ogg`. Mapas/terreno/texturas de las zonas 2-5 están en el OBB de Play
+  (`main.33.com.tatemgames.iceage.obb`, EXPANSION_SIZE 27 MB), que hay que copiar como ese nombre o `main.obb`.
 - Texturas `.crt/.crthd`: formato propio; el loader de texturas llama `glCompressedTexImage2D` con
   `GL_COMPRESSED_RGB/RGBA_PVRTC_4BPPV1_IMG` (0x8C00/0x8C02) — vitaGL los soporta.
 - Guardado: `basedir/CarnivoresData.dt` → `ux0:data/carnivoresiceage/CarnivoresData.dt`.

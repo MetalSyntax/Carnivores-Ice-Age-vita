@@ -78,7 +78,11 @@ static void *sym(const char *name, int required) {
 
 // First existing path, or NULL. The Google Play expansion (main.obb) holds
 // both packs; the standalone bundle APKs hold one each.
+// The Play Store name (ExpansionsDownloader version 33) is accepted as is.
+#define OBB_PLAY_NAME DATA_PATH "main.33.com.tatemgames.iceage.obb"
+
 static const char *find_bundle(const char *a, const char *b, const char *c) {
+    if (file_exists(OBB_PLAY_NAME)) return OBB_PLAY_NAME;
     if (file_exists(a)) return a;
     if (file_exists(b)) return b;
     if (file_exists(c)) return c;

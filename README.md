@@ -106,7 +106,9 @@ To run this port on your PS Vita or PS TV, you will need:
 3. Copy the APK there, renamed to `game.apk`.
 4. Open the APK with any zip extractor and copy `lib/armeabi/libIceAgeAndroid.so` and `lib/armeabi/libfmodex.so`
    to the same folder.
-5. *(Optional)* Copy Ice Age's Google Play expansion file renamed to `main.obb` (zones 2–5, extra weapons).
+5. *(Optional)* Copy Ice Age's Google Play expansion file, `main.33.com.tatemgames.iceage.obb` (from
+   `Android/obb/com.tatemgames.iceage/` on a device with the game installed), as is or renamed to `main.obb`
+   (zones 2–5, extra weapons).
    Without it only the first zone is available; the log says `Content packs not unlocked` when no valid pack is found.
 6. Launch the game from the LiveArea. The first boot creates `config.txt` and the `logs/` folder.
 
