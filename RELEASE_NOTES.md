@@ -16,8 +16,8 @@ Requires `kubridge.skprx` and `libshacccg.suprx` (ShaRKBR33D).
 - Boot, menus, hunting, weapons, calls, map, binoculars, save data.
 - Physical controls for everything, plus the original touch controls.
 - Audio (FMOD) through the Vita's audio output.
-- Optional content packs: `CarnivoresBundleOne.apk` (areas 3–4, sniper rifle) and `CarnivoresBundleTwo.apk`
-  (area 6, double-barreled shotgun, crossbow), or a Google Play `main.obb`.
+- Optional content packs (zones 2–5, extra weapons) from Ice Age's Google Play expansion file, copied as
+  `main.obb`. Dinosaur Hunter's `CarnivoresBundle*.apk` are a different game and are not used.
 
 ## Highlights
 

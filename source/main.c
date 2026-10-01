@@ -41,6 +41,7 @@
 #include <so_util/so_util.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int _newlib_heap_size_user = 256 * 1024 * 1024;
@@ -84,6 +85,32 @@ static const char *find_bundle(const char *a, const char *b, const char *c) {
     return NULL;
 }
 
+// True if the zip at path lists an entry whose name ends in needle. Only the
+// tail of the file is scanned: the central directory (every entry name) sits
+// at the end of a zip, and Ice Age's packs have a few hundred entries.
+static int zip_has_entry(const char *path, const char *needle) {
+    if (!path)
+        return 0;
+    FILE *f = fopen(path, "rb");
+    if (!f)
+        return 0;
+    const long tail = 512 * 1024;
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    long off = size > tail ? size - tail : 0;
+    char *buf = malloc(size - off);
+    int found = 0;
+    if (buf && fseek(f, off, SEEK_SET) == 0) {
+        size_t n = fread(buf, 1, size - off, f);
+        size_t nl = strlen(needle);
+        for (size_t i = 0; !found && i + nl <= n; i++)
+            found = buf[i] == needle[0] && memcmp(buf + i, needle, nl) == 0;
+    }
+    free(buf);
+    fclose(f);
+    return found;
+}
+
 static void call_init(const char *name, jobject obj) {
     jni_void_fn fn = sym(name, 0);
     if (fn) {
@@ -112,9 +139,11 @@ int main() {
 
     // Assets: the engine opens the APK itself with its bundled libzip
     // (Files_OpenFileOfType -> zip_open/zip_fopen(ZIP_FL_NODIR)), then the two
-    // content bundles as fallbacks. Pack 1 (areas 3-4, sniper rifle) and
-    // pack 2 (area 6, double-barreled shotgun, crossbow) are not in the APK;
-    // without them those weapons have no model (see patch.c).
+    // content bundles as fallbacks. The APK only has area1 (zone 0); zones
+    // 1-4 (area2..area5, Menu_IsAreaAvilable -> pack1_purchased) and the extra
+    // weapons live in Ice Age's Google Play expansion (main.obb, the same file
+    // for both packs). The CarnivoresBundleOne/Two.apk of Carnivores: Dinosaur
+    // Hunter (area3/4/6 of *that* game) do not contain them.
     if (!file_exists(APK_PATH)) {
         fatal_error("Looks like you haven't installed the data files for this "
                     "port. Please copy the original APK to %s", APK_PATH);
@@ -168,9 +197,15 @@ int main() {
 
     nativeResize(&jni, (jobject) &renderer_placeholder, SCREEN_W, SCREEN_H);
 
-    if (nativeSetBundlesPurchasedState && setting_unlockBundles) {
+    // Unlocking zones whose files are missing loads an empty terrain: purple
+    // sky with font glyphs as textures. Only unlock when the data is there.
+    int have_packs = zip_has_entry(bundle1, "area2.rsn") || zip_has_entry(bundle2, "area2.rsn");
+    if (nativeSetBundlesPurchasedState && setting_unlockBundles && have_packs) {
         l_info("Marking both content bundles as owned (unlock_bundles=1).");
         nativeSetBundlesPurchasedState(&jni, activity_obj, JNI_TRUE, JNI_TRUE);
+    } else if (setting_unlockBundles && !have_packs) {
+        l_warn("Content packs not unlocked: no bundle contains area2.rsn (Ice Age's main.obb "
+               "is needed; Dinosaur Hunter's CarnivoresBundle*.apk are a different game).");
     }
 
     input_init();

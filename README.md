@@ -47,8 +47,9 @@ calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md)
   game's own camera input — fast, smooth and independent of the frame rate.
 - **Clean HUD**: the touch buttons are drawn at 1 % opacity (they still work when touched); the compass keeps
   its full opacity. Configurable with `hud_opacity`.
-- **Content packs**: `CarnivoresBundleOne.apk` (areas 3–4, sniper rifle) and `CarnivoresBundleTwo.apk` (area 6,
-  double-barreled shotgun, crossbow) are unlocked when their APK is present (or a Google Play `main.obb`).
+- **Content packs**: zones 2–5 and the extra weapons come from Ice Age's Google Play expansion file (`main.obb`).
+  They are unlocked only when that file is present and really contains them. The `CarnivoresBundleOne/Two.apk` of
+  *Carnivores: Dinosaur Hunter* belong to a different game and do not work here.
 - **No freeze on missing weapon files**: the plain shotgun model is in none of the 1.5.4 files, and on Android
   the game locked up the first time a weapon without files was drawn. Such a weapon now keeps its own stats and
   borrows another weapon's model.
@@ -94,7 +95,7 @@ To run this port on your PS Vita or PS TV, you will need:
    (`ur0:tai/config.txt` under `*KERNEL`).
 3. [**libshacccg.suprx**](https://github.com/Rinnegatamante/ShaRKBR33D/releases/latest) installed in `ur0:data/`.
 4. A legally obtained copy of **Carnivores: Ice Age 1.5.4** for Android (`com.tatemgames.iceage`, `armeabi`).
-   Optionally, the two content pack APKs.
+   Optionally, its Google Play expansion file (`main.<version>.com.tatemgames.iceage.obb`).
 
 ---
 
@@ -105,8 +106,8 @@ To run this port on your PS Vita or PS TV, you will need:
 3. Copy the APK there, renamed to `game.apk`.
 4. Open the APK with any zip extractor and copy `lib/armeabi/libIceAgeAndroid.so` and `lib/armeabi/libfmodex.so`
    to the same folder.
-5. *(Optional)* Copy the content packs: `CarnivoresBundleOne.apk` and `CarnivoresBundleTwo.apk` (also accepted as
-   `bundle1.apk` / `bundle2.apk`), or a Google Play expansion file named `main.obb` that contains both.
+5. *(Optional)* Copy Ice Age's Google Play expansion file renamed to `main.obb` (zones 2–5, extra weapons).
+   Without it only the first zone is available; the log says `Content packs not unlocked` when no valid pack is found.
 6. Launch the game from the LiveArea. The first boot creates `config.txt` and the `logs/` folder.
 
 ### Final File Structure in `ux0:data/carnivoresiceage/`
@@ -116,8 +117,7 @@ ux0:data/carnivoresiceage/
 ├── game.apk                  <- The original APK, renamed
 ├── libIceAgeAndroid.so       <- lib/armeabi/ in the APK
 ├── libfmodex.so              <- lib/armeabi/ in the APK
-├── CarnivoresBundleOne.apk   <- (optional) content pack 1: areas 3-4, sniper rifle
-├── CarnivoresBundleTwo.apk   <- (optional) content pack 2: area 6, double-barreled shotgun, crossbow
+├── main.obb                  <- (optional) Google Play expansion: zones 2-5, extra weapons
 ├── config.txt                <- Settings (created on first boot)
 └── logs/                     <- Incremental logs (carnivoresiceage_NNN.log)
 ```
@@ -130,7 +130,7 @@ ux0:data/carnivoresiceage/
 | Key | Default | Meaning |
 |---|---|---|
 | `language` | `0` | 0 = system language, 1 English, 2 German, 3 French, 4 Spanish |
-| `unlock_bundles` | `1` | Treat both content packs as purchased (there is no store on Vita) |
+| `unlock_bundles` | `1` | Treat both content packs as purchased (there is no store on Vita); only if `main.obb` has them |
 | `look_sensitivity` | `100` | Right stick camera speed in percent (10–400). Stacks with the in-game sensitivity slider |
 | `invert_look_y` | `0` | Invert the right stick vertical axis |
 | `hud_opacity` | `1` | Opacity of the in-game touch buttons, percent of the original (0 hidden, 100 original). The compass and the weapon/call lists are not affected |

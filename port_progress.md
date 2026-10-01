@@ -218,6 +218,14 @@ _(vacía — anotar aquí cada bug confirmado en consola)_
   sprites; `Render()` los dibuja al final con `Sprites_Render()` → `Font_Render()` → `GUI_RenderFade()`, así que el fondo
   del menú tapaba el cuadro. Ahora se dibuja desde un hook de `Font_Render()` (ARM 0x438fc, como en Dinosaur Hunter),
   en la proyección GUI del motor. **Pendiente de probar en consola.**
+- Prueba 14 (log `carnivoresiceage_014.log`): el cuadro amarillo se ve en el menú ✅. Volvió el morado en el juego,
+  y **no era input**: todas las pruebas buenas (004-009) fueron en la zona 0, y las dos moradas (010, 014) son las
+  únicas en la zona 1. La zona 1 carga `area2` (`Game_StartLoading("area2")`), que no está en el APK (solo `area1`)
+  ni en los `CarnivoresBundleOne/Two.apk`. Esos bundles tienen el **mismo MD5 que los de Dinosaur Hunter** (contienen
+  `area3/4/6` de ese juego). Ice Age guarda las zonas 2-5 en su `main.obb` (un archivo para los dos packs). Como
+  `unlock_bundles=1` desbloqueaba `pack1_purchased` igual, se cargaba un terreno vacío. Fix (`main.c`): solo se
+  desbloquea si algún bundle contiene `area2.rsn` (se busca en la cola del zip, donde está el directorio central).
+  Si no, aparece `Content packs not unlocked` en el log y las zonas quedan con candado. README/RELEASE_NOTES corregidos.
 
 ### Release v1.0
 - Build limpio verificado 2026-09-30 (`carnivoresiceage.vpk`, VITA_VERSION 01.00), incluye el parche de `ferror`.
