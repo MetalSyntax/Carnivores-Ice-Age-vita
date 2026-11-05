@@ -32,6 +32,7 @@
 
 #include "utils/logger.h"
 #include "utils/settings.h"
+#include "trophies.h"
 
 /*
  * JNI Methods
@@ -219,6 +220,9 @@ static void showAlertDialog(jmethodID id, va_list args) {
 static void unlockAchievement(jmethodID id, va_list args) {
     jint ach_id = va_arg(args, jint);
     l_info("JNI: unlockAchievement(%d)", (int) ach_id);
+    // Engine achievements 0..17 are trophies 1..18 (0 is the platinum).
+    if (ach_id >= 0 && ach_id < 18)
+        trophies_unlock((uint32_t) ach_id + 1);
 }
 
 static void sendFlurryEvent(jmethodID id, va_list args) {

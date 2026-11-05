@@ -542,8 +542,13 @@ static int find_next_menu_control(int cur, uint32_t dir) {
     if (!nav_center(cur, &cur_x, &cur_y))
         return find_initial_menu_focus();
 
-    int best = -1, wrap = -1;
-    float best_dist = 1e9f, wrap_dist = -1.0f;
+    // best: inside a ~63 deg cone around the pressed direction. loose: any
+    // control ahead, only for UP/DOWN (menus are columns; corner buttons like
+    // "Back" are reached diagonally). LEFT/RIGHT never drift up or down: that
+    // was "left goes up" in vertical lists (v1.1 feedback).
+    int best = -1, loose = -1, wrap = -1;
+    float best_dist = 1e9f, loose_dist = 1e9f, wrap_dist = -1.0f;
+    int vertical = (dir & (SCE_CTRL_UP | SCE_CTRL_DOWN)) != 0;
 
     for (int i = 0; i < *gui_controls_count; i++) {
         float cx, cy;
@@ -558,12 +563,20 @@ static int find_next_menu_control(int cur, uint32_t dir) {
 
         if (along > 8.0f) {
             float dist = along + 2.0f * fabsf(across);
-            if (dist < best_dist) { best_dist = dist; best = i; }
+            if (fabsf(across) <= 2.0f * along) {
+                if (dist < best_dist) { best_dist = dist; best = i; }
+            } else if (vertical && dist < loose_dist) {
+                loose_dist = dist; loose = i;
+            }
         } else if (along < -8.0f && fabsf(across) < 40.0f) {
             if (-along > wrap_dist) { wrap_dist = -along; wrap = i; }
         }
     }
-    return best >= 0 ? best : (wrap >= 0 ? wrap : cur);
+    if (best >= 0)
+        return best;
+    if (loose >= 0)
+        return loose;
+    return wrap >= 0 ? wrap : cur;
 }
 
 static void step_slider(int idx, int dir) {

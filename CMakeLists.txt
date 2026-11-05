@@ -16,7 +16,7 @@ include("${VITASDK}/share/vita.cmake" REQUIRED)
 set(VITA_APP_NAME "Carnivores Ice Age")
 set(VITA_TITLEID "PSVCSIA01")
 set(VITA_VPKNAME "carnivoresiceage")
-set(VITA_VERSION "01.01")
+set(VITA_VERSION "01.02")
 set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
 
 # Optional: used for "send" and "dump" targets
@@ -77,6 +77,7 @@ add_executable(${CMAKE_PROJECT_NAME}
                source/dynlib.c
                source/java.c
                source/patch.c
+               source/trophies.c
                source/reimpl/bits/_ctype.c
                source/reimpl/errno.c
                source/reimpl/io.c
@@ -177,6 +178,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
                       ScePower_stub
                       SceTouch_stub
                       SceVshBridge_stub
+                      SceNpTrophy_stub
+                      SceSysmodule_stub
                       )
 
 vita_create_self(eboot.bin ${CMAKE_PROJECT_NAME} UNSAFE NOASLR)
@@ -190,6 +193,7 @@ vita_create_vpk(${VITA_VPKNAME}.vpk ${VITA_TITLEID} eboot.bin
                 ${CMAKE_SOURCE_DIR}/extras/livearea/startup.png sce_sys/livearea/contents/startup.png
                 ${CMAKE_SOURCE_DIR}/extras/livearea/bg0.png sce_sys/livearea/contents/bg0.png
                 ${CMAKE_SOURCE_DIR}/extras/livearea/template.xml sce_sys/livearea/contents/template.xml
+                ${CMAKE_SOURCE_DIR}/extras/trophy/CRIA00001_00/TROPHY.TRP sce_sys/trophy/CRIA00001_00/TROPHY.TRP
                 )
 
 add_custom_target(send

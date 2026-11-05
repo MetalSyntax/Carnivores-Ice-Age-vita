@@ -22,6 +22,9 @@ Procedimiento interno (el texto público de la release está en `RELEASE_NOTES.m
       `controls.txt` conserva lo asignado. El panel entra completo en pantalla.
 - [ ] En la cacería: sacar el arma (Cuadrado) y disparar (R/X) funciona; los botones táctiles casi no se ven
       (1 %) y siguen respondiendo al toque; la brújula se ve normal; Círculo hace la llamada y Start pausa.
+- [x] Trofeos (v1.2): con NoTrpDrm el primer arranque instala el pack (log: `comm_id: CRIA00001`,
+      `TRP readable`); el usuario confirmó en consola que funciona (2026-11-05).
+- [ ] Menús (v1.2): en una lista vertical Izquierda/Derecha ya no suben ni bajan.
 - [ ] Salir con PS y volver a entrar: la partida guardada se conserva.
 
 ## 2. Build

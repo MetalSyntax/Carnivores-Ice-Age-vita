@@ -56,6 +56,8 @@ calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md)
 - **Menus with buttons**: D-Pad / left stick move a cursor drawn as four translucent white corners around what
   each button, hunt cell or slider actually draws (plus the button's own red "pressed" look), Cross selects, Circle goes back, Left / Right change sliders. Works in
   the main menus, the hunt setup pages and the in-game pause / statistics screens.
+- **Native PS Vita trophies**: the game's 18 achievements + Platinum, unlocked with the system
+  notification (see [Trophies](#-trophies)).
 - **Facebook buttons hidden**: the share / login buttons do nothing without network access, so they are removed
   from the options menu and the statistics and trophy screens.
 - **No freeze on missing weapon files**: without the OBB the shotgun has no model, and the game locked up the
@@ -95,6 +97,17 @@ pause / back.
 | Left / Right on a slider | Change its value |
 
 In-game, buttons press the game's own on-screen controls, so they only act while that control is on screen.
+
+### 🏆 Trophies
+
+19 native trophies (the game's 18 achievements + Platinum), installed on the first launch. Needs
+`NoTrpDrm.suprx` under `*main` in `ur0:tai/config.txt` (reboot after editing). Without the plugin the game
+runs normally with trophies off. Progress from earlier versions counts: score, distance, areas and species
+are checked against the saved profile at the end of each hunt.
+
+On the first launch with NoTrpDrm the screen stays black for a few seconds while the trophies install; don't
+close the game. The pack (`sce_sys/trophy/CRIA00001_00/TROPHY.TRP`) is rebuilt with
+`python3 extras/scripts/generate_trophies.py` (needs the extracted APK for the icons).
 
 ### ⚠️ Known Issues
 

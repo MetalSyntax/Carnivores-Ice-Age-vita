@@ -39,6 +39,7 @@
 
 #include <falso_jni/FalsoJNI.h>
 #include <so_util/so_util.h>
+#include "trophies.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -161,6 +162,7 @@ int main() {
 
     gl_init();
     l_success("vitaGL initialized (%dx%d).", SCREEN_W, SCREEN_H);
+    trophies_init();  // needs the display up: runs the trophy setup dialog
 
     // A missing bundle gets a path that does not exist: the zip_open() cache in
     // patch.c answers "not available" for it without touching the card.

@@ -252,3 +252,28 @@ _(vacía — anotar aquí cada bug confirmado en consola)_
   (`main.33.com.tatemgames.iceage.obb`, subido a la consola por FTP), fix del cielo morado en zonas sin datos,
   Facebook oculto, cámara del stick derecho más rápida. `README.md`, `RELEASE_NOTES.md` (v1.1) y el checklist de
   `RELEASE.md` actualizados. **Falta la verificación en consola del checklist antes de etiquetar `v1.1.0`.**
+
+### v1.2 (2026-11-05) — feedback de v1.1
+- **Feedback:** "You press left on the dpad and it goes up instead." Causa: `find_next_menu_control()` aceptaba
+  cualquier control con `along > 8` y solo penalizaba el desvío (`along + 2|across|`); en una columna, IZQUIERDA
+  elegía el botón de arriba apenas más a la izquierda. Ahora el candidato tiene que estar en un cono
+  (`|across| <= 2*along`, ~63°); solo ARRIBA/ABAJO conservan el fallback diagonal (para botones de esquina);
+  IZQUIERDA/DERECHA sin nada en el cono hacen wrap en la misma fila o no se mueven.
+- **Trofeos nativos**, copiados del port de Prince of Persia Classic v01.55 (la versión confirmada en consola):
+  `source/trophies.c` idéntico salvo comm_id `PSVCSIA01` (TRP `CRIA00001_00`), sin NP_COMMUNICATION_ID en el sfo,
+  `vglInitExtended` ya reserva la memoria de common dialog (el bug 0x800204C4 de PoP no aplica).
+  Disparador: el motor ya tiene 18 logros (Google Play) y los manda por `SocialUtils.unlockAchievement(id)`
+  (llamado desde `IngameTrophyInfo_UnlockAchievement`, que deduplica con `ingame_trophy_info[id+0x338]`).
+  `java.c` → `trophies_unlock(id + 1)`; 0 = platino (lo da el SO). Ids según
+  `Social_ShowAchievementNotification`: 0 Scientist … 17 Collector. Condiciones leídas del pseudo-C
+  (`IngameTrophyInfo_Save`, `Characters.cpp`, `Menu.cpp`); textos en `extras/scripts/generate_trophies.py`.
+  Iconos = retratos de `assets/Help/*_ipad.png` del APK. Requiere NoTrpDrm.
+- `VITA_VERSION` 01.02.
+- **Consola (log 022):** error del sistema `C0-11133-9` al abrir; el proceso muere dentro de
+  `sceNpTrophySetupDialogInit` (Init y CreateContext OK). Mismo bug que Dinosaur Hunter: el comm_id
+  `PSVCSIA01` no tiene formato NP (4 letras + 5 dígitos). Cambiado a `CRIA00001`. Tope de 30 s al setup
+  dialog (como DH). Breadcrumbs `trophies: -> ...` en el log. Pendiente de prueba.
+- **Consola (log 023):** `NP-6182-7`. El log seguía diciendo comm_id `PSVCSIA01` y "TRP NOT readable":
+  `sceAppMgrAppParamGetString(0, 12)` devuelve el TITLE_ID, no el NP comm id (en PoP coinciden, por eso
+  no se notaba). Quitada esa lectura: comm_id fijo `CRIA00001`. Sin TRP legible ya no se abre el dialog.
+- **Consola:** trofeos funcionando (confirmado por el usuario 2026-11-05). Release v1.2.0.

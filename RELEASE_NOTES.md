@@ -1,37 +1,26 @@
-# Carnivores: Ice Age for PS Vita — v1.1
+# Carnivores: Ice Age for PS Vita — v1.2
 
-PS Vita port of *Carnivores: Ice Age* (Android 1.5.4). This version adds full menu navigation with the
-buttons and the content packs from the game's Google Play expansion file.
+PS Vita port of *Carnivores: Ice Age* (Android 1.5.4). This version adds native PS Vita trophies and fixes the
+menu cursor jumping the wrong way.
 
 **The game files are not included.** You need your own Android APK (1.5.4, `armeabi`) and, for zones 2–5, its
 Google Play expansion file. Installation, controls and options are in the [README](README.md).
 
 ## Download
 
-- `carnivoresiceage.vpk` — install with VitaShell (over v1.0 is fine, save data is kept).
+- `carnivoresiceage.vpk` — install with VitaShell (over v1.1 is fine, save data is kept).
 
-Requires `kubridge.skprx` and `libshacccg.suprx` (ShaRKBR33D).
+Requires `kubridge.skprx` and `libshacccg.suprx` (ShaRKBR33D). Trophies need `NoTrpDrm.suprx` under `*main`.
 
-## What's new in v1.1
+## What's new in v1.2
 
-- **Menus with physical buttons.** D-Pad / left stick move a cursor drawn as four translucent white corners
-  around each button, hunt cell or slider, without covering it; the focused button also shows its red "pressed" look. Cross selects, Circle goes back, Left / Right
-  change sliders. Works in the main menus, the hunt setup pages and the in-game pause / statistics screens.
-- **Content packs from the Google Play OBB.** Copy `main.33.com.tatemgames.iceage.obb` (or `main.obb`) to
-  `ux0:data/carnivoresiceage/`, without extracting it:
-  - pack 1: zones 2–3, shotgun, sniper rifle;
-  - pack 2: zones 4–5, double-barreled shotgun, crossbow.
-- **Fixed: purple sky and broken textures in zone 2 and later.** v1.0 unlocked every zone even when its files
-  were missing, and the game loaded an empty terrain. Packs are now unlocked only when the OBB contains them;
-  without it only the first zone can be selected.
-- **Port menu to remap the controls** (Start + Select, or Select in the game's menus): every in-game action
-  can be bound to any button (one or two each), plus camera speed, camera inversion (up/down, left/right),
-  stick swap and touch HUD opacity. Saved in `controls.txt` / `config.txt`.
-- **Photo mode on buttons**: R takes the photo, Right / Left zoom.
-- **Facebook buttons hidden** (options menu, statistics and trophy screens): they did nothing on Vita.
-- **Faster right-stick camera** with a finer response near the center.
-- The `CarnivoresBundleOne/Two.apk` files mentioned in v1.0 belong to *Carnivores: Dinosaur Hunter* and do not
-  work with this game; they can be deleted.
+- **Native PS Vita trophies**: the game's 18 achievements (First Blood, Sharpshooter, Marathoner, Collector…)
+  plus Platinum, with the system notification. Progress from v1.1 save data counts. Without NoTrpDrm the game
+  runs as before with trophies off. On the first launch the screen stays black for a few seconds while the
+  trophies install.
+- **Fixed: menu cursor moving the wrong way.** Pressing Left / Right in a vertical list could jump to the
+  button above or below. The cursor now only moves to buttons that are really in the pressed direction;
+  Up / Down still reach corner buttons such as Back.
 
 ## What works
 
