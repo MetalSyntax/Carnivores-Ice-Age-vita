@@ -1,19 +1,29 @@
-# CARNIVORES: ICE AGE — PS Vita Port
-
-<p align="center">
-  <img src="extras/livearea/pic0.png" width="700" alt="Carnivores: Ice Age PS Vita Banner" />
-</p>
+<h1 align="center">
+  <img src="extras/livearea/pic0.png" alt="Carnivores: Ice Age PS Vita Banner" width="700"><br>
+  Carnivores: Ice Age · PS Vita Port
+</h1>
 
 <p align="center">
   <b>Native port of Carnivores: Ice Age (Tatem Games) for PlayStation Vita and PlayStation TV.</b>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Platform-PS%20Vita%20%7C%20PS%20TV-003791.svg?style=flat-square&logo=playstation" alt="Platform PS Vita" />
-  <img src="https://img.shields.io/badge/Title%20ID-PSVCSIA01-ff69b4.svg?style=flat-square" alt="Title ID PSVCSIA01" />
+  <img src="https://img.shields.io/badge/Platform-PS%20Vita%20%7C%20PS%20TV-003791.svg?style=flat-square&logo=playstation" alt="Platform" />
+  <img src="https://img.shields.io/badge/Origin-Android-3DDC84.svg?style=flat-square&logo=android" alt="Origin" />
+  <img src="https://img.shields.io/badge/Title%20ID-PSVCSIA01-ff69b4.svg?style=flat-square" alt="Title ID" />
   <img src="https://img.shields.io/badge/Engine-Tatem%20Carnivores-brightgreen.svg?style=flat-square" alt="Engine" />
   <img src="https://img.shields.io/badge/Renderer-vitaGL%20%28GLES%201.1%29-orange.svg?style=flat-square" alt="Renderer" />
-  <img src="https://img.shields.io/badge/Status-Playable-success.svg?style=flat-square" alt="Status: Playable" />
+  <img src="https://img.shields.io/badge/Status-Playable-success.svg?style=flat-square" alt="Status" />
+</p>
+
+<p align="center">
+  <a href="#-description">Description</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-controls">Controls</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#-known-issues">Known Issues</a> •
+  <a href="#-building-from-source">Build</a> •
+  <a href="#-credits">Credits</a>
 </p>
 
 ---
@@ -27,12 +37,7 @@ original ARM libraries from the Android release — the game (`libIceAgeAndroid.
 (*soloader*) and an Android environment emulation layer (*FalsoJNI*), with
 [vitaGL](https://github.com/Rinnegatamante/vitaGL) providing the OpenGL ES 1.1 rendering backend.
 
-### 🎮 Current Status: Playable
-
-The game **is playable from start to finish on real hardware**: menus, hunting in every area, all weapons,
-calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md) for the full bug-by-bug history.
-
-### ✨ What Works
+### 🔧 What Works
 
 - **Native ARM execution**: `libIceAgeAndroid.so` and `libfmodex.so` are loaded at fixed addresses and run
   directly on the Vita's CPU; no emulation of game code. The JNI entry points (`Java_com_tatem_iceage_*`) are
@@ -64,7 +69,41 @@ calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md)
   first time a weapon without files was drawn. Such a weapon now keeps its own stats and
   borrows another weapon's model.
 
-### 🕹️ Controls
+---
+
+## 🎮 Status & Playability
+
+**Status: Playable** (version `01.02`, release v1.2.0)
+
+The game **is playable from start to finish on real hardware**: menus, hunting in every area, all weapons,
+calls, map, binoculars and save data. See [`port_progress.md`](port_progress.md) for the full bug-by-bug history.
+
+---
+
+## ✨ Features
+
+| Feature | Status | Notes |
+| :--- | :---: | :--- |
+| Boots to gameplay | ✅ | Playable from start to finish on real hardware; full hunts confirmed on console |
+| Graphics / renderer | ✅ | OpenGL ES 1.1 through vendored vitaGL; 960×544 presentation with the original HUD |
+| Audio & music | 🧪 | FMOD `AudioTrack` output emulated on the Vita audio ports; not separately noted in the progress log |
+| Video / cutscenes | ➖ | No video playback documented for this port |
+| Physical buttons | ✅ | Every in-game action on a button; Left / Right / Cross / Circle in menus |
+| Analog sticks / camera | ✅ | Right-stick camera feeds the game's own camera input |
+| Touch screen | ✅ | Original touch controls keep working (drawn at 1 % opacity) |
+| Button remapping / port menu | 🧪 | Start + Select port menu and `controls.txt`; not separately confirmed on console |
+| Save data | ✅ | Save data works on hardware (see Status) |
+| Native trophies | ✅ | 19 trophies (18 achievements + Platinum); confirmed working on console 2026-11-05 |
+| Languages | 🧪 | Five language options (`language` in `config.txt`); not separately confirmed |
+| Performance | 🟡 | Menus at 60 FPS; hunting scenes 16–19 FPS (measured before the FPU patch, not re-measured) |
+| Online / IAP / ads | ➖ | Facebook, Google Play Games, ads and in-app purchases are stubbed out |
+| PS TV | 🧪 | Not tested on PS TV |
+
+Legend: `✅ Working (verified on console) · 🧪 Implemented, not yet verified on console · 🟡 Partial · ❌ Not working · ➖ Not applicable · ❔ Not documented yet`
+
+---
+
+## 🎯 Controls
 
 | Vita input | Action |
 |---|---|
@@ -98,7 +137,9 @@ pause / back.
 
 In-game, buttons press the game's own on-screen controls, so they only act while that control is on screen.
 
-### 🏆 Trophies
+---
+
+## 🏆 Trophies
 
 19 native trophies (the game's 18 achievements + Platinum), installed on the first launch. Needs
 `NoTrpDrm.suprx` under `*main` in `ur0:tai/config.txt` (reboot after editing). Without the plugin the game
@@ -108,18 +149,6 @@ are checked against the saved profile at the end of each hunt.
 On the first launch with NoTrpDrm the screen stays black for a few seconds while the trophies install; don't
 close the game. The pack (`sce_sys/trophy/CRIA00001_00/TROPHY.TRP`) is rebuilt with
 `python3 extras/scripts/generate_trophies.py` (needs the extracted APK for the icons).
-
-### ⚠️ Known Issues
-
-- **3D frame rate**: menus run at 60 FPS; hunting scenes are much slower (16–19 FPS measured before the FPU
-  patch, not re-measured since). `msaa 0` helps if the GPU is the limit — `show_fps 1` tells which side it is.
-- **Without the OBB**: only the first zone can be played, and the shotgun (its model is in pack 1) is drawn
-  with another weapon's model, see [No freeze on missing weapon files](#-what-works).
-- **Online features**: Facebook, Google Play Games, ads and in-app purchases are stubbed out.
-- **No exit dialog**: the Android "Exit?" prompt is skipped; quit with the PS button.
-
-If you hit a bug, grab the newest log from `ux0:data/carnivoresiceage/logs/` (and the `.psp2dmp` from
-`ux0:data/` for a crash) and open an issue. `engine_log 1` in `config.txt` adds the game's own messages.
 
 ---
 
@@ -137,7 +166,7 @@ To run this port on your PS Vita or PS TV, you will need:
 
 ---
 
-## 📦 Installation Instructions
+## 📦 Installation
 
 1. Install `carnivoresiceage.vpk` on your console using **VitaShell**.
 2. Create the folder `ux0:data/carnivoresiceage/`.
@@ -186,7 +215,21 @@ ux0:data/carnivoresiceage/
 
 ---
 
-## 🛠️ Building from Source
+## 🐛 Known Issues
+
+- **3D frame rate**: menus run at 60 FPS; hunting scenes are much slower (16–19 FPS measured before the FPU
+  patch, not re-measured since). `msaa 0` helps if the GPU is the limit — `show_fps 1` tells which side it is.
+- **Without the OBB**: only the first zone can be played, and the shotgun (its model is in pack 1) is drawn
+  with another weapon's model, see [No freeze on missing weapon files](#-what-works).
+- **Online features**: Facebook, Google Play Games, ads and in-app purchases are stubbed out.
+- **No exit dialog**: the Android "Exit?" prompt is skipped; quit with the PS button.
+
+If you hit a bug, grab the newest log from `ux0:data/carnivoresiceage/logs/` (and the `.psp2dmp` from
+`ux0:data/` for a crash) and open an issue. `engine_log 1` in `config.txt` adds the game's own messages.
+
+---
+
+## 🔨 Building from Source
 
 This port does **not** keep a local copy of `porting_tools/` — build, deploy, log, LiveArea and crash-dump
 workflows are handled by **psvita-port-toolkit**, a standalone tool kept outside this repository.
@@ -214,7 +257,7 @@ LiveArea images from an extracted APK.
 
 ---
 
-## 🏗️ Project Structure
+## 📁 Project Structure
 
 - `source/`: Native loader — lifecycle and JNI calls (`main.c`), `.so` patches (`patch.c`: zip cache and fixes,
   weapon fallback), input and HUD (`input.c`), emulated Java layer (`java.c`, `generated_jni_*`).
@@ -229,7 +272,7 @@ LiveArea images from an extracted APK.
 
 ---
 
-## ⚖️ Disclaimer
+## 📜 Disclaimer
 
 **Carnivores: Ice Age** is a trademark of Tatem Games. The work presented in this repository is not "official"
 or produced or sanctioned by Tatem Games or any other trademark owner mentioned in this repository.
@@ -262,7 +305,7 @@ This project is **free** and will stay free. If you enjoy it, a tip from **$1** 
 
 ---
 
-## 👥 Credits and Acknowledgements
+## 👥 Credits
 
 - **Tatem Games / Action Forms**: Original developers of Carnivores: Ice Age.
 - **Wonder Diaz**: This port.
@@ -275,7 +318,7 @@ This project is **free** and will stay free. If you enjoy it, a tip from **$1** 
 
 ---
 
-## License
+## 📄 License
 
 The loader is licensed under the MIT license — see the [LICENSE](LICENSE) file. vitaGL (`vendor/vitaGL`) is
 LGPL-3.0. The game, its assets, its `.so` files and FMOD remain the property of their owners and are not
